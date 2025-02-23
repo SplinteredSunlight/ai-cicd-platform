@@ -44,8 +44,8 @@ ai-cicd-platform/
 - ✅ Repository structure established
 - ✅ AI Pipeline Generator service implemented
 - ✅ Security Enforcement service implemented
-- 🔄 Self-Healing Debugger (in progress)
-- 📝 API Gateway & Dashboard (planned)
+- ✅ Self-Healing Debugger service implemented
+- 🔄 API Gateway & Dashboard (in progress)
 - 📝 Kubernetes deployment (planned)
 
 ## 🔧 Development Setup
@@ -131,6 +131,56 @@ ai-cicd-platform/
    - Swagger UI: http://localhost:8001/docs
    - ReDoc: http://localhost:8001/redoc
 
+### Self-Healing Debugger Service
+
+1. Navigate to the service directory:
+   ```bash
+   cd services/self-healing-debugger
+   ```
+
+2. Create a virtual environment and activate it:
+   ```bash
+   python -m venv venv
+   source venv/bin/activate  # On Windows: venv\Scripts\activate
+   ```
+
+3. Install dependencies:
+   ```bash
+   pip install -r requirements.txt
+   ```
+
+4. Install and configure Elasticsearch:
+   ```bash
+   # Using Docker (recommended for development)
+   docker run -d --name elasticsearch \
+     -p 9200:9200 -p 9300:9300 \
+     -e "discovery.type=single-node" \
+     elasticsearch:8.7.0
+   ```
+
+5. Set up environment variables:
+   ```bash
+   cp .env.example .env
+   # Edit .env with your OpenAI API key and other configurations
+   ```
+
+6. Run the service:
+   ```bash
+   uvicorn main:app --reload --port 8002
+   ```
+
+7. Access the API documentation:
+   - Swagger UI: http://localhost:8002/docs
+   - ReDoc: http://localhost:8002/redoc
+
+8. Use the CLI debugger:
+   ```bash
+   # Example: Debug a pipeline run
+   python -m cli_debugger debug-pipeline \
+     --pipeline-id my-pipeline-123 \
+     --log-file pipeline.log
+   ```
+
 ### Running Tests
 
 ```bash
@@ -140,6 +190,10 @@ pytest tests/
 
 # Security Enforcement tests
 cd services/security-enforcement
+pytest tests/
+
+# Self-Healing Debugger tests
+cd services/self-healing-debugger
 pytest tests/
 ```
 
