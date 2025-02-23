@@ -40,9 +40,55 @@ ai-cicd-platform/
 
 ## 🚦 Current Status
 
-- Project initialization in progress
-- Repository structure established
-- Documentation setup initiated
+- ✅ Project initialization completed
+- ✅ Repository structure established
+- ✅ AI Pipeline Generator service implemented
+- 🔄 Security Enforcement service (in progress)
+- 📝 Self-Healing Debugger (planned)
+- 📝 API Gateway & Dashboard (planned)
+- 📝 Kubernetes deployment (planned)
+
+## 🔧 Development Setup
+
+### AI Pipeline Generator Service
+
+1. Navigate to the service directory:
+   ```bash
+   cd services/ai-pipeline-generator
+   ```
+
+2. Create a virtual environment and activate it:
+   ```bash
+   python -m venv venv
+   source venv/bin/activate  # On Windows: venv\Scripts\activate
+   ```
+
+3. Install dependencies:
+   ```bash
+   pip install -r requirements.txt
+   ```
+
+4. Set up environment variables:
+   ```bash
+   cp .env.example .env
+   # Edit .env with your OpenAI API key
+   ```
+
+5. Run the service:
+   ```bash
+   uvicorn main:app --reload
+   ```
+
+6. Access the API documentation:
+   - Swagger UI: http://localhost:8000/docs
+   - ReDoc: http://localhost:8000/redoc
+
+### Running Tests
+
+```bash
+cd services/ai-pipeline-generator
+pytest tests/
+```
 
 ## 📝 Getting Started
 
