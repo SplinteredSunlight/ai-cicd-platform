@@ -43,8 +43,8 @@ ai-cicd-platform/
 - ✅ Project initialization completed
 - ✅ Repository structure established
 - ✅ AI Pipeline Generator service implemented
-- 🔄 Security Enforcement service (in progress)
-- 📝 Self-Healing Debugger (planned)
+- ✅ Security Enforcement service implemented
+- 🔄 Self-Healing Debugger (in progress)
 - 📝 API Gateway & Dashboard (planned)
 - 📝 Kubernetes deployment (planned)
 
@@ -83,10 +83,63 @@ ai-cicd-platform/
    - Swagger UI: http://localhost:8000/docs
    - ReDoc: http://localhost:8000/redoc
 
+### Security Enforcement Service
+
+1. Navigate to the service directory:
+   ```bash
+   cd services/security-enforcement
+   ```
+
+2. Create a virtual environment and activate it:
+   ```bash
+   python -m venv venv
+   source venv/bin/activate  # On Windows: venv\Scripts\activate
+   ```
+
+3. Install dependencies:
+   ```bash
+   pip install -r requirements.txt
+   ```
+
+4. Install security tools:
+   ```bash
+   # Install Trivy
+   brew install aquasecurity/trivy/trivy  # macOS
+   # For other OS, see: https://aquasecurity.github.io/trivy/latest/getting-started/installation/
+
+   # Install Snyk CLI
+   npm install -g snyk
+   snyk auth  # Follow prompts to authenticate
+
+   # Install OWASP ZAP
+   brew install zap  # macOS
+   # For other OS, download from: https://www.zaproxy.org/download/
+   ```
+
+5. Set up environment variables:
+   ```bash
+   cp .env.example .env
+   # Edit .env with your API keys and configurations
+   ```
+
+6. Run the service:
+   ```bash
+   uvicorn main:app --reload --port 8001
+   ```
+
+7. Access the API documentation:
+   - Swagger UI: http://localhost:8001/docs
+   - ReDoc: http://localhost:8001/redoc
+
 ### Running Tests
 
 ```bash
+# AI Pipeline Generator tests
 cd services/ai-pipeline-generator
+pytest tests/
+
+# Security Enforcement tests
+cd services/security-enforcement
 pytest tests/
 ```
 
