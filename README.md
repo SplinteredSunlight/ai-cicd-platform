@@ -45,7 +45,8 @@ ai-cicd-platform/
 - ✅ AI Pipeline Generator service implemented
 - ✅ Security Enforcement service implemented
 - ✅ Self-Healing Debugger service implemented
-- 🔄 API Gateway & Dashboard (in progress)
+- ✅ API Gateway service implemented
+- 🔄 Frontend Dashboard (in progress)
 - 📝 Kubernetes deployment (planned)
 
 ## 🔧 Development Setup
@@ -181,6 +182,58 @@ ai-cicd-platform/
      --log-file pipeline.log
    ```
 
+### API Gateway Service
+
+1. Navigate to the service directory:
+   ```bash
+   cd services/api-gateway
+   ```
+
+2. Create a virtual environment and activate it:
+   ```bash
+   python -m venv venv
+   source venv/bin/activate  # On Windows: venv\Scripts\activate
+   ```
+
+3. Install dependencies:
+   ```bash
+   pip install -r requirements.txt
+   ```
+
+4. Install and configure Redis:
+   ```bash
+   # Using Docker (recommended for development)
+   docker run -d --name redis \
+     -p 6379:6379 \
+     redis:7.0
+   ```
+
+5. Set up environment variables:
+   ```bash
+   cp .env.example .env
+   # Edit .env with your configuration
+   ```
+
+6. Run the service:
+   ```bash
+   uvicorn main:app --reload --port 8000
+   ```
+
+7. Access the API documentation:
+   - Swagger UI: http://localhost:8000/docs
+   - ReDoc: http://localhost:8000/redoc
+
+8. Test the gateway:
+   ```bash
+   # Get authentication token
+   curl -X POST http://localhost:8000/api/v1/auth/token \
+     -d "username=admin&password=admin"
+
+   # Use token to access services
+   curl -H "Authorization: Bearer {token}" \
+     http://localhost:8000/api/v1/pipeline/generate
+   ```
+
 ### Running Tests
 
 ```bash
@@ -194,6 +247,10 @@ pytest tests/
 
 # Self-Healing Debugger tests
 cd services/self-healing-debugger
+pytest tests/
+
+# API Gateway tests
+cd services/api-gateway
 pytest tests/
 ```
 
