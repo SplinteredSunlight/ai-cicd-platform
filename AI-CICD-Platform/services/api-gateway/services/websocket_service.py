@@ -1,17 +1,34 @@
 import asyncio
 import json
 import logging
-from typing import Dict, List, Any, Optional, Set, Callable
+from typing import Dict, List, Any, Optional, Set, Callable, Union
 import uuid
 from datetime import datetime
+from enum import Enum
 
 import socketio
-from fastapi import FastAPI
-from pydantic import BaseModel
+from fastapi import FastAPI, Depends, HTTPException, status
+from pydantic import BaseModel, Field
 
 from ..models.gateway_models import UserInfo
+from ..services.auth_service import get_current_user
 
 logger = logging.getLogger(__name__)
+
+class EventPriority(str, Enum):
+    """Priority levels for WebSocket events"""
+    HIGH = "high"
+    MEDIUM = "medium"
+    LOW = "low"
+
+class EventCategory(str, Enum):
+    """Categories for WebSocket events"""
+    PIPELINE = "pipeline"
+    SECURITY = "security"
+    DEBUG = "debug"
+    SYSTEM = "system"
+    ARCHITECTURE = "architecture"
+    USER = "user"
 
 class WebSocketEvent(BaseModel):
     """Model for WebSocket events"""
@@ -20,7 +37,9 @@ class WebSocketEvent(BaseModel):
     target_users: Optional[List[str]] = None  # If None, broadcast to all authenticated users
     target_roles: Optional[List[str]] = None  # If set, broadcast to users with these roles
     namespace: str = "/"
-    priority: Optional[str] = None  # Optional priority for real-time events: 'high', 'medium', 'low'
+    priority: Optional[EventPriority] = None  # Priority for real-time events
+    category: Optional[EventCategory] = None  # Category for event filtering
+    timestamp: str = Field(default_factory=lambda: datetime.utcnow().isoformat())
 
 class WebSocketService:
     """Service for handling WebSocket connections and events"""
@@ -135,11 +154,11 @@ class WebSocketService:
             event_type="debug_ml_classification",
             data={
                 "errorId": error_id,
-                "classifications": classifications,
-                "timestamp": datetime.utcnow().isoformat()
+                "classifications": classifications
             },
             target_users=target_users,
-            priority="medium"
+            priority=EventPriority.MEDIUM,
+            category=EventCategory.DEBUG
         ))
         
     async def emit_architecture_diagram(self, diagram_id: str, diagram_data: Dict[str, Any], target_users: Optional[List[str]] = None):
@@ -148,11 +167,11 @@ class WebSocketService:
             event_type="architecture_diagram_update",
             data={
                 "diagramId": diagram_id,
-                "diagram": diagram_data,
-                "timestamp": datetime.utcnow().isoformat()
+                "diagram": diagram_data
             },
             target_users=target_users,
-            priority="low"
+            priority=EventPriority.LOW,
+            category=EventCategory.ARCHITECTURE
         ))
         
     async def emit_security_vulnerability_detected(self, vulnerability_id: str, vulnerability_data: Dict[str, Any], target_users: Optional[List[str]] = None):
@@ -161,11 +180,11 @@ class WebSocketService:
             event_type="security_vulnerability_detected",
             data={
                 "vulnerabilityId": vulnerability_id,
-                "vulnerability": vulnerability_data,
-                "timestamp": datetime.utcnow().isoformat()
+                "vulnerability": vulnerability_data
             },
             target_users=target_users,
-            priority="high"
+            priority=EventPriority.HIGH,
+            category=EventCategory.SECURITY
         ))
         
     async def emit_security_vulnerability_updated(self, vulnerability_id: str, vulnerability_data: Dict[str, Any], target_users: Optional[List[str]] = None):
@@ -174,11 +193,11 @@ class WebSocketService:
             event_type="security_vulnerability_updated",
             data={
                 "vulnerabilityId": vulnerability_id,
-                "vulnerability": vulnerability_data,
-                "timestamp": datetime.utcnow().isoformat()
+                "vulnerability": vulnerability_data
             },
             target_users=target_users,
-            priority="medium"
+            priority=EventPriority.MEDIUM,
+            category=EventCategory.SECURITY
         ))
         
     async def emit_security_scan_started(self, scan_id: str, scan_data: Dict[str, Any], target_users: Optional[List[str]] = None):
@@ -187,11 +206,11 @@ class WebSocketService:
             event_type="security_scan_started",
             data={
                 "scanId": scan_id,
-                "scan": scan_data,
-                "timestamp": datetime.utcnow().isoformat()
+                "scan": scan_data
             },
             target_users=target_users,
-            priority="medium"
+            priority=EventPriority.MEDIUM,
+            category=EventCategory.SECURITY
         ))
         
     async def emit_security_scan_updated(self, scan_id: str, scan_data: Dict[str, Any], target_users: Optional[List[str]] = None):
@@ -200,11 +219,11 @@ class WebSocketService:
             event_type="security_scan_updated",
             data={
                 "scanId": scan_id,
-                "scan": scan_data,
-                "timestamp": datetime.utcnow().isoformat()
+                "scan": scan_data
             },
             target_users=target_users,
-            priority="low"
+            priority=EventPriority.LOW,
+            category=EventCategory.SECURITY
         ))
         
     async def emit_security_scan_completed(self, scan_id: str, scan_data: Dict[str, Any], target_users: Optional[List[str]] = None):
@@ -213,11 +232,213 @@ class WebSocketService:
             event_type="security_scan_completed",
             data={
                 "scanId": scan_id,
-                "scan": scan_data,
-                "timestamp": datetime.utcnow().isoformat()
+                "scan": scan_data
             },
             target_users=target_users,
-            priority="medium"
+            priority=EventPriority.MEDIUM,
+            category=EventCategory.SECURITY
+        ))
+        
+    # Pipeline events
+    async def emit_pipeline_created(self, pipeline_id: str, pipeline_data: Dict[str, Any], target_users: Optional[List[str]] = None):
+        """Helper method to emit pipeline created events"""
+        await self.emit_event(WebSocketEvent(
+            event_type="pipeline_created",
+            data={
+                "pipelineId": pipeline_id,
+                "pipeline": pipeline_data
+            },
+            target_users=target_users,
+            priority=EventPriority.MEDIUM,
+            category=EventCategory.PIPELINE
+        ))
+        
+    async def emit_pipeline_updated(self, pipeline_id: str, pipeline_data: Dict[str, Any], target_users: Optional[List[str]] = None):
+        """Helper method to emit pipeline updated events"""
+        await self.emit_event(WebSocketEvent(
+            event_type="pipeline_updated",
+            data={
+                "pipelineId": pipeline_id,
+                "pipeline": pipeline_data
+            },
+            target_users=target_users,
+            priority=EventPriority.LOW,
+            category=EventCategory.PIPELINE
+        ))
+        
+    async def emit_pipeline_deleted(self, pipeline_id: str, target_users: Optional[List[str]] = None):
+        """Helper method to emit pipeline deleted events"""
+        await self.emit_event(WebSocketEvent(
+            event_type="pipeline_deleted",
+            data={
+                "pipelineId": pipeline_id
+            },
+            target_users=target_users,
+            priority=EventPriority.MEDIUM,
+            category=EventCategory.PIPELINE
+        ))
+        
+    async def emit_pipeline_execution_started(self, execution_id: str, pipeline_id: str, execution_data: Dict[str, Any], target_users: Optional[List[str]] = None):
+        """Helper method to emit pipeline execution started events"""
+        await self.emit_event(WebSocketEvent(
+            event_type="pipeline_execution_started",
+            data={
+                "executionId": execution_id,
+                "pipelineId": pipeline_id,
+                "execution": execution_data
+            },
+            target_users=target_users,
+            priority=EventPriority.MEDIUM,
+            category=EventCategory.PIPELINE
+        ))
+        
+    async def emit_pipeline_execution_updated(self, execution_id: str, pipeline_id: str, execution_data: Dict[str, Any], target_users: Optional[List[str]] = None):
+        """Helper method to emit pipeline execution updated events"""
+        await self.emit_event(WebSocketEvent(
+            event_type="pipeline_execution_updated",
+            data={
+                "executionId": execution_id,
+                "pipelineId": pipeline_id,
+                "execution": execution_data
+            },
+            target_users=target_users,
+            priority=EventPriority.LOW,
+            category=EventCategory.PIPELINE
+        ))
+        
+    async def emit_pipeline_execution_completed(self, execution_id: str, pipeline_id: str, execution_data: Dict[str, Any], target_users: Optional[List[str]] = None):
+        """Helper method to emit pipeline execution completed events"""
+        await self.emit_event(WebSocketEvent(
+            event_type="pipeline_execution_completed",
+            data={
+                "executionId": execution_id,
+                "pipelineId": pipeline_id,
+                "execution": execution_data
+            },
+            target_users=target_users,
+            priority=EventPriority.HIGH,
+            category=EventCategory.PIPELINE
+        ))
+        
+    # Debug events
+    async def emit_debug_session_created(self, session_id: str, session_data: Dict[str, Any], target_users: Optional[List[str]] = None):
+        """Helper method to emit debug session created events"""
+        await self.emit_event(WebSocketEvent(
+            event_type="debug_session_created",
+            data={
+                "sessionId": session_id,
+                "session": session_data
+            },
+            target_users=target_users,
+            priority=EventPriority.MEDIUM,
+            category=EventCategory.DEBUG
+        ))
+        
+    async def emit_debug_session_updated(self, session_id: str, session_data: Dict[str, Any], target_users: Optional[List[str]] = None):
+        """Helper method to emit debug session updated events"""
+        await self.emit_event(WebSocketEvent(
+            event_type="debug_session_updated",
+            data={
+                "sessionId": session_id,
+                "session": session_data
+            },
+            target_users=target_users,
+            priority=EventPriority.LOW,
+            category=EventCategory.DEBUG
+        ))
+        
+    async def emit_debug_error_detected(self, session_id: str, error_id: str, error_data: Dict[str, Any], target_users: Optional[List[str]] = None):
+        """Helper method to emit debug error detected events"""
+        await self.emit_event(WebSocketEvent(
+            event_type="debug_error_detected",
+            data={
+                "sessionId": session_id,
+                "errorId": error_id,
+                "error": error_data
+            },
+            target_users=target_users,
+            priority=EventPriority.HIGH,
+            category=EventCategory.DEBUG
+        ))
+        
+    async def emit_debug_patch_generated(self, session_id: str, patch_id: str, patch_data: Dict[str, Any], target_users: Optional[List[str]] = None):
+        """Helper method to emit debug patch generated events"""
+        await self.emit_event(WebSocketEvent(
+            event_type="debug_patch_generated",
+            data={
+                "sessionId": session_id,
+                "patchId": patch_id,
+                "patch": patch_data
+            },
+            target_users=target_users,
+            priority=EventPriority.MEDIUM,
+            category=EventCategory.DEBUG
+        ))
+        
+    async def emit_debug_patch_applied(self, session_id: str, patch_id: str, result_data: Dict[str, Any], target_users: Optional[List[str]] = None):
+        """Helper method to emit debug patch applied events"""
+        await self.emit_event(WebSocketEvent(
+            event_type="debug_patch_applied",
+            data={
+                "sessionId": session_id,
+                "patchId": patch_id,
+                "result": result_data
+            },
+            target_users=target_users,
+            priority=EventPriority.HIGH,
+            category=EventCategory.DEBUG
+        ))
+        
+    async def emit_debug_patch_rollback(self, session_id: str, patch_id: str, result_data: Dict[str, Any], target_users: Optional[List[str]] = None):
+        """Helper method to emit debug patch rollback events"""
+        await self.emit_event(WebSocketEvent(
+            event_type="debug_patch_rollback",
+            data={
+                "sessionId": session_id,
+                "patchId": patch_id,
+                "result": result_data
+            },
+            target_users=target_users,
+            priority=EventPriority.MEDIUM,
+            category=EventCategory.DEBUG
+        ))
+        
+    # System events
+    async def emit_system_status_update(self, status_data: Dict[str, Any], target_users: Optional[List[str]] = None):
+        """Helper method to emit system status update events"""
+        await self.emit_event(WebSocketEvent(
+            event_type="system_status_update",
+            data={
+                "status": status_data
+            },
+            target_users=target_users,
+            priority=EventPriority.LOW,
+            category=EventCategory.SYSTEM
+        ))
+        
+    async def emit_system_metrics_update(self, metrics_data: Dict[str, Any], target_users: Optional[List[str]] = None):
+        """Helper method to emit system metrics update events"""
+        await self.emit_event(WebSocketEvent(
+            event_type="system_metrics_update",
+            data={
+                "metrics": metrics_data
+            },
+            target_users=target_users,
+            priority=EventPriority.LOW,
+            category=EventCategory.SYSTEM
+        ))
+        
+    async def emit_system_alert(self, alert_id: str, alert_data: Dict[str, Any], target_users: Optional[List[str]] = None):
+        """Helper method to emit system alert events"""
+        await self.emit_event(WebSocketEvent(
+            event_type="system_alert",
+            data={
+                "alertId": alert_id,
+                "alert": alert_data
+            },
+            target_users=target_users,
+            priority=EventPriority.HIGH,
+            category=EventCategory.SYSTEM
         ))
     
     def mount_to_app(self, app: FastAPI, path: str = "/ws"):

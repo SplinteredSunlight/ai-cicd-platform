@@ -12,6 +12,18 @@ An intelligent continuous integration and delivery platform that leverages artif
 
 ## Recent Enhancements
 
+### Frontend Dashboard Real-time Updates
+
+The Frontend Dashboard now features comprehensive real-time updates through WebSocket integration:
+
+- **Live Pipeline Status**: Real-time monitoring of pipeline executions with status updates and progress tracking
+- **Security Alerts**: Instant notifications of detected vulnerabilities with severity classification
+- **Debug Activity Feed**: Live stream of debugging events, error detections, and patch applications
+- **WebSocket API**: Standardized event system with categorization and priority levels
+- **React Integration Hooks**: Easy-to-use React hooks for WebSocket event subscription
+
+These real-time features significantly enhance the user experience by providing immediate feedback on system activities without requiring page refreshes. See the [WebSocket API Documentation](docs/websocket-api.md) for more details.
+
 ### Security Enforcement - Vulnerability Database Integration
 
 The Security Enforcement component has been enhanced with additional vulnerability database integrations:
