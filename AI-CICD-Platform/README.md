@@ -232,6 +232,7 @@ This project includes an AI Task Manager to help streamline development with Cli
 - Generate context-rich task prompts for Cline
 - Track progress on different components
 - Maintain context between development sessions
+- Automatically generate new tasks when current tasks are completed
 
 To get started with the AI Task Manager:
 
@@ -244,6 +245,61 @@ To get started with the AI Task Manager:
 
 # Use a specialized template for backend services
 ./task cline --template backend-service
+
+# Mark current task as complete and generate the next task
+./task-complete.sh
+```
+
+### Automatic Task Generation
+
+The project includes scripts for automatically generating new tasks when current tasks are completed:
+
+- `generate-next-task-prompt.sh`: Generates a new task based on the current task in the task tracking file
+- `task-complete.sh`: A simple wrapper script that marks the current task as complete and generates the next task
+- `auto-task-complete.sh`: Automatically detects task completion based on commit messages and runs task-complete.sh
+
+These scripts help maintain a continuous workflow by automatically setting up the next task with detailed requirements and context.
+
+#### Fully Automated Task Management with Git Hooks
+
+The project now includes Git hooks that fully automate the task management process:
+
+1. **Post-Commit Hook**: Completely automates the task transition process
+   - Automatically adds "Completed task" to your commit message if not present
+   - Runs task-complete.sh to generate the next task
+   - Commits the new task files
+   - Opens the new task file in VSCode for easy copy/paste
+
+2. **Pre-Push Hook**: Ensures all task-related files are committed before pushing
+   - Prevents pushing with uncommitted task changes
+   - Helps maintain consistency in the task tracking
+
+3. **Post-Checkout Hook**: Notifies you of the current task after checkout
+   - Displays the current task when switching branches or pulling changes
+   - Helps you quickly get context on what to work on
+
+Example workflow:
+```bash
+# Make your changes for the current task
+git add .
+git commit -m "Any commit message"
+# The post-commit hook automatically:
+# - Adds "Completed task" to your commit message
+# - Generates the next task
+# - Opens the new task file in VSCode
+git push
+# All changes including the new task are pushed to the repository
+```
+
+This fully automated system eliminates the need to manually run task scripts or add specific text to commit messages, reducing API fees by efficiently managing task transitions and ensuring you always have the next task ready to work on.
+
+You can also still use the manual scripts if needed:
+```bash
+# Manually complete a task and generate the next one
+./task-complete.sh
+
+# Or use the auto-task-complete.sh script
+./auto-task-complete.sh "Fixed bug in authentication service"
 ```
 
 For more information, see [Using the Task Manager](USING-TASK-MANAGER.md).
@@ -272,3 +328,4 @@ This project is licensed under the MIT License - see the LICENSE file for detail
 ## Support
 
 For support, please open an issue in the GitHub repository or contact the maintainers.
+# Test commit
