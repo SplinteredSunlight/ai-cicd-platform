@@ -6,15 +6,20 @@ import asyncio
 from elasticsearch import AsyncElasticsearch
 from openai import OpenAI
 from fuzzywuzzy import fuzz
+import logging
 
-from ..config import get_settings, ERROR_PATTERNS, PROMPT_TEMPLATES
-from ..models.pipeline_debug import (
+from config import get_settings, ERROR_PATTERNS, PROMPT_TEMPLATES
+from models.pipeline_debug import (
     PipelineError,
     AnalysisResult,
     ErrorCategory,
     ErrorSeverity,
     PipelineStage
 )
+from services.ml_classifier_service import MLClassifierService
+
+# Configure logging
+logger = logging.getLogger(__name__)
 
 class LogAnalyzer:
     def __init__(self):
@@ -28,6 +33,16 @@ class LogAnalyzer:
         )
         self.openai_client = OpenAI(api_key=self.settings.openai_api_key)
         self.pattern_cache = {}
+        
+        # Initialize ML classifier service
+        try:
+            self.ml_classifier_service = MLClassifierService()
+            self.use_ml_classification = self.settings.use_ml_classification if hasattr(self.settings, 'use_ml_classification') else True
+            logger.info("ML classifier service initialized")
+        except Exception as e:
+            logger.warning(f"Failed to initialize ML classifier service: {str(e)}")
+            self.ml_classifier_service = None
+            self.use_ml_classification = False
 
     async def analyze_pipeline_logs(
         self,
@@ -110,6 +125,41 @@ class LogAnalyzer:
         
         return errors
 
+    def _get_unmatched_sections(self, log_content: str, existing_matches: List[PipelineError]) -> str:
+        """
+        Extract sections of log content not covered by existing matches
+        """
+        if not existing_matches:
+            return log_content
+            
+        # Sort matches by position in log
+        sorted_matches = sorted(existing_matches, key=lambda e: e.context.get("line_number", 0))
+        
+        # Extract unmatched sections
+        unmatched = []
+        last_end = 0
+        
+        for error in sorted_matches:
+            line_num = error.context.get("line_number", 0)
+            if line_num > last_end + 5:  # Add some buffer
+                # Find the actual line in the log content
+                lines = log_content.split("\n")
+                if line_num < len(lines):
+                    start_line = max(0, last_end)
+                    end_line = min(len(lines), line_num - 1)
+                    if end_line > start_line:
+                        unmatched.append("\n".join(lines[start_line:end_line]))
+            
+            # Update last_end
+            last_end = line_num + 5  # Add some buffer
+            
+        # Add any remaining content
+        lines = log_content.split("\n")
+        if last_end < len(lines) - 1:
+            unmatched.append("\n".join(lines[last_end:]))
+            
+        return "\n\n".join(unmatched)
+    
     async def _analyze_with_ai(
         self,
         log_content: str,
@@ -187,6 +237,243 @@ class LogAnalyzer:
         except Exception as e:
             raise Exception(f"Error analysis generation failed: {str(e)}")
 
+    def _parse_ai_error_analysis(self, analysis_text: str) -> List[PipelineError]:
+        """
+        Parse AI-generated error analysis and convert to PipelineError objects
+        """
+        errors = []
+        
+        # Simple parsing logic - look for error patterns in the text
+        lines = analysis_text.split("\n")
+        current_error = None
+        error_lines = []
+        
+        for line in lines:
+            if "error:" in line.lower() or "exception:" in line.lower() or "failed:" in line.lower():
+                # If we were already collecting an error, save it
+                if current_error and error_lines:
+                    error_message = "\n".join(error_lines)
+                    errors.append(PipelineError(
+                        error_id=f"ai_err_{datetime.utcnow().timestamp()}",
+                        message=error_message,
+                        severity=self._determine_severity(error_message),
+                        category=self._determine_category(error_message),
+                        stage=self._determine_stage(error_message),
+                        context={}
+                    ))
+                
+                # Start a new error
+                current_error = line
+                error_lines = [line]
+            elif current_error and line.strip():
+                # Continue collecting lines for the current error
+                error_lines.append(line)
+        
+        # Don't forget the last error if there is one
+        if current_error and error_lines:
+            error_message = "\n".join(error_lines)
+            errors.append(PipelineError(
+                error_id=f"ai_err_{datetime.utcnow().timestamp()}",
+                message=error_message,
+                severity=self._determine_severity(error_message),
+                category=self._determine_category(error_message),
+                stage=self._determine_stage(error_message),
+                context={}
+            ))
+        
+        return errors
+    
+    async def _determine_category_with_ml(self, error_message: str, context: Optional[Dict] = None) -> Tuple[ErrorCategory, float]:
+        """
+        Determine error category using ML classification.
+        
+        Args:
+            error_message: The error message text
+            context: Additional context for the error
+            
+        Returns:
+            Tuple of (category, confidence)
+        """
+        try:
+            # Use ML classifier service to classify error
+            result = await self.ml_classifier_service.classify_error(error_message)
+            
+            if result["status"] == "success" and "classifications" in result:
+                # Get category prediction and confidence
+                category_result = result["classifications"].get("category", {})
+                prediction = category_result.get("prediction")
+                confidence = category_result.get("confidence", 0.0)
+                
+                if prediction and confidence > self.settings.ml_confidence_threshold:
+                    # Convert prediction to ErrorCategory enum
+                    try:
+                        return ErrorCategory[prediction.upper()], confidence
+                    except (KeyError, ValueError):
+                        logger.warning(f"Invalid category prediction: {prediction}")
+            
+            # Fall back to rule-based approach
+            return self._determine_category_rule_based(error_message), 0.0
+            
+        except Exception as e:
+            logger.warning(f"ML classification failed: {str(e)}")
+            return self._determine_category_rule_based(error_message), 0.0
+    
+    def _determine_category(self, error_message: str) -> ErrorCategory:
+        """
+        Determine error category based on content.
+        
+        This method tries to use ML classification if available, and falls back
+        to rule-based classification if ML is not available or fails.
+        """
+        # Check if ML classification is enabled and available
+        if self.use_ml_classification and self.ml_classifier_service:
+            try:
+                # Create event loop if not already running
+                loop = asyncio.get_event_loop()
+                if loop.is_running():
+                    # Use run_coroutine_threadsafe if loop is already running
+                    future = asyncio.run_coroutine_threadsafe(
+                        self._determine_category_with_ml(error_message),
+                        loop
+                    )
+                    category, _ = future.result(timeout=2.0)  # 2 second timeout
+                    return category
+                else:
+                    # Use run_until_complete if loop is not running
+                    category, _ = loop.run_until_complete(
+                        self._determine_category_with_ml(error_message)
+                    )
+                    return category
+            except Exception as e:
+                logger.warning(f"Error using ML classification: {str(e)}")
+                # Fall back to rule-based approach
+        
+        # Use rule-based approach
+        return self._determine_category_rule_based(error_message)
+    
+    def _determine_category_rule_based(self, error_message: str) -> ErrorCategory:
+        """
+        Determine error category based on content using rule-based approach.
+        """
+        error_lower = error_message.lower()
+        
+        # Dependency errors
+        if any(dep in error_lower for dep in [
+            "module", "import", "package", "dependency", "require", "npm", "pip",
+            "gem", "maven", "gradle", "nuget", "cargo", "go get", "yarn",
+            "could not find", "not found", "missing", "cannot resolve", "unresolved",
+            "no such module", "cannot import", "failed to load", "not installed"
+        ]):
+            return ErrorCategory.DEPENDENCY
+            
+        # Permission errors
+        elif any(perm in error_lower for perm in [
+            "permission", "access", "denied", "eacces", "forbidden", "unauthorized",
+            "not allowed", "cannot access", "cannot create", "cannot write",
+            "cannot read", "cannot delete", "cannot modify", "cannot execute"
+        ]):
+            return ErrorCategory.PERMISSION
+            
+        # Configuration errors
+        elif any(conf in error_lower for conf in [
+            "config", "configuration", "setting", "environment", "env", "variable",
+            "yaml", "json", "toml", "ini", "properties", "invalid syntax",
+            "malformed", "missing key", "missing value", "invalid value"
+        ]):
+            return ErrorCategory.CONFIGURATION
+            
+        # Network errors
+        elif any(net in error_lower for perm in [
+            "network", "connection", "timeout", "unreachable", "refused", "reset",
+            "dns", "http", "https", "ssl", "tls", "certificate", "proxy",
+            "firewall", "port", "socket", "ping", "connect", "disconnect"
+        ]):
+            return ErrorCategory.NETWORK
+            
+        # Resource errors
+        elif any(res in error_lower for res in [
+            "resource", "memory", "cpu", "disk", "space", "storage", "quota",
+            "limit", "exceeded", "out of memory", "oom", "full", "capacity",
+            "insufficient", "exhausted", "overload", "throttle"
+        ]):
+            return ErrorCategory.RESOURCE
+            
+        # Build errors
+        elif any(build in error_lower for build in [
+            "build", "compile", "compilation", "syntax", "type", "linker",
+            "undefined reference", "undefined symbol", "missing declaration",
+            "missing definition", "failed to build", "build failed"
+        ]):
+            return ErrorCategory.BUILD
+            
+        # Test errors
+        elif any(test in error_lower for test in [
+            "test", "assert", "expect", "mock", "stub", "spy", "fixture",
+            "junit", "pytest", "jest", "mocha", "karma", "jasmine", "cypress",
+            "selenium", "webdriver", "coverage", "fail", "failed test"
+        ]):
+            return ErrorCategory.TEST
+            
+        # Deployment errors
+        elif any(deploy in error_lower for deploy in [
+            "deploy", "deployment", "release", "publish", "kubernetes", "k8s",
+            "container", "docker", "image", "registry", "cluster", "pod",
+            "service", "ingress", "helm", "chart", "terraform", "cloudformation"
+        ]):
+            return ErrorCategory.DEPLOYMENT
+            
+        # Security errors
+        elif any(sec in error_lower for sec in [
+            "security", "vulnerability", "cve", "exploit", "attack", "breach",
+            "authentication", "authorization", "credential", "password", "token",
+            "secret", "key", "certificate", "encrypt", "decrypt", "hash", "salt"
+        ]):
+            return ErrorCategory.SECURITY
+            
+        # Default to UNKNOWN if no match
+        else:
+            return ErrorCategory.UNKNOWN
+    
+    def _parse_ai_analysis(self, error: PipelineError, analysis_text: str) -> AnalysisResult:
+        """
+        Parse AI-generated analysis text into structured AnalysisResult
+        """
+        # Extract root cause
+        root_cause = ""
+        root_cause_match = re.search(r"Root cause:(.*?)(?=\n\n|\Z)", analysis_text, re.DOTALL)
+        if root_cause_match:
+            root_cause = root_cause_match.group(1).strip()
+        
+        # Extract suggested solutions
+        solutions = []
+        solutions_match = re.search(r"Suggested solutions:(.*?)(?=\n\n|\Z)", analysis_text, re.DOTALL)
+        if solutions_match:
+            solutions_text = solutions_match.group(1)
+            solutions = [s.strip().lstrip("- ") for s in solutions_text.split("\n") if s.strip()]
+        
+        # Extract prevention measures
+        prevention = []
+        prevention_match = re.search(r"Prevention measures:(.*?)(?=\n\n|\Z)", analysis_text, re.DOTALL)
+        if prevention_match:
+            prevention_text = prevention_match.group(1)
+            prevention = [p.strip().lstrip("- ") for p in prevention_text.split("\n") if p.strip()]
+        
+        return AnalysisResult(
+            error=error,
+            root_cause=root_cause,
+            confidence_score=0.85,  # Default confidence
+            suggested_solutions=solutions,
+            prevention_measures=prevention
+        )
+    
+    async def _get_previous_solutions(self, error: PipelineError, similar_errors: List[PipelineError]) -> List[Dict]:
+        """
+        Get previous solutions for similar errors
+        """
+        # This would typically query a database of previous solutions
+        # For now, we'll return a simple placeholder
+        return [{"error_id": e.error_id, "solution": "Previous solution placeholder"} for e in similar_errors[:3]]
+    
     async def _find_similar_errors(self, error: PipelineError) -> List[PipelineError]:
         """
         Find similar historical errors from Elasticsearch
@@ -265,13 +552,16 @@ class LogAnalyzer:
         """
         Determine pipeline stage from error context
         """
+        # Check for POST_DEPLOY first since it might contain words from other stages
+        if any(indicator in error_message.lower() for indicator in ["health check", "post-deploy", "post deploy", "after deployment"]):
+            return PipelineStage.POST_DEPLOY
+            
         stage_indicators = {
             PipelineStage.CHECKOUT: ["git", "checkout", "clone", "fetch"],
             PipelineStage.BUILD: ["build", "compile", "package", "docker"],
             PipelineStage.TEST: ["test", "pytest", "jest", "coverage"],
             PipelineStage.SECURITY_SCAN: ["security", "scan", "vulnerability"],
-            PipelineStage.DEPLOY: ["deploy", "release", "publish"],
-            PipelineStage.POST_DEPLOY: ["health", "monitor", "verify"]
+            PipelineStage.DEPLOY: ["deploy", "release", "publish"]
         }
 
         for stage, indicators in stage_indicators.items():

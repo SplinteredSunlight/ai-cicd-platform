@@ -1,7 +1,12 @@
 import pytest
 import os
+import sys
 from typing import Generator
 from fastapi.testclient import TestClient
+
+# Add the parent directory to sys.path to allow imports
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+
 from main import app
 
 @pytest.fixture(scope="session", autouse=True)

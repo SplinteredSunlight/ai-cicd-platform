@@ -1,0 +1,74 @@
+{
+  "default": {
+    "title": "# Next Task: {task_name} in {phase_name}\n\n",
+    "description": "## Task Description\nThis task involves implementing the {task_name} feature for the {phase_name} component of the AI CI/CD Platform.\n\n",
+    "steps": "## Steps to Complete\n{steps}\n\n",
+    "testing": "## Testing Requirements\n- Ensure all tests pass\n- Add new tests for the implemented functionality\n- Verify integration with existing components\n\n",
+    "documentation": "## Documentation\n- Update relevant README files\n- Update architecture diagrams if necessary\n- Update API documentation if applicable\n\n",
+    "footer": "After completing this task, run the task command to mark it as completed and get the prompt for the next task.\n"
+  },
+  "concise": {
+    "title": "# Task: {task_name}\n\n",
+    "description": "Implement {task_name} for {phase_name}.\n\n",
+    "steps": "## Steps\n{steps}\n\n",
+    "testing": "## Testing\n- Write tests\n- Ensure integration\n\n",
+    "documentation": "## Docs\n- Update as needed\n\n",
+    "footer": "Run ./task complete when done.\n"
+  },
+  "detailed": {
+    "title": "# Detailed Task: {task_name} in {phase_name}\n\n",
+    "description": "## Task Description\nThis task involves implementing the {task_name} feature for the {phase_name} component of the AI CI/CD Platform.\n\n## Context\n{architecture_summary}\n\n## Recent Completed Tasks\n{recent_tasks}\n\n",
+    "steps": "## Implementation Steps\n{steps}\n\n",
+    "testing": "## Testing Requirements\n- Ensure all tests pass\n- Add new tests for the implemented functionality\n- Verify integration with existing components\n- Run regression tests\n\n",
+    "documentation": "## Documentation Requirements\n- Update relevant README files\n- Update architecture diagrams if necessary\n- Update API documentation if applicable\n- Update user guides\n\n",
+    "footer": "After completing this task, run the task command to mark it as completed and get the prompt for the next task.\n"
+  },
+  "subtask": {
+    "title": "# Sub-Task: {task_name} (Part of {phase_name})\n\n",
+    "description": "## Sub-Task Description\nThis is a sub-task for implementing the {task_name} feature as part of the larger task in the {phase_name} component.\n\n",
+    "steps": "## Steps to Complete\n{steps}\n\n",
+    "testing": "## Testing Requirements\n- Write unit tests for this specific sub-task\n- Ensure it integrates with the parent task\n\n",
+    "documentation": "## Documentation\n- Document the implementation details\n- Update any relevant diagrams\n\n",
+    "footer": "After completing this sub-task, run ./task complete --sub-task \"{task_name}\" to mark it as completed and move to the next sub-task.\n"
+  },
+  "backend-service": {
+    "title": "# Backend Task: {task_name} in {phase_name}\n\n",
+    "description": "## Task Description\nThis task involves implementing the {task_name} feature for the {phase_name} backend service of the AI CI/CD Platform.\n\n## Service Context\nThe {phase_name} service is a Python-based microservice that provides {phase_name} functionality to the platform.\n\n## Technical Details\n- Service directory: services/{phase_name}/\n- Main file: services/{phase_name}/main.py\n- Configuration: services/{phase_name}/config.py\n- Requirements: services/{phase_name}/requirements.txt\n\n",
+    "steps": "## Implementation Steps\n{steps}\n\n## API Endpoints\nConsider how this feature will be exposed through the API:\n- Endpoint path(s)\n- Request/response formats\n- Authentication requirements\n- Rate limiting considerations\n\n",
+    "testing": "## Testing Requirements\n- Write pytest tests in services/{phase_name}/tests/\n- Test API endpoints using pytest fixtures\n- Test edge cases and error handling\n- Ensure proper validation and error responses\n- Verify integration with other services\n\n",
+    "documentation": "## Documentation Requirements\n- Update services/{phase_name}/README.md\n- Document API endpoints in services/{phase_name}/README.md\n- Update API contracts in docs/api-contracts.md if necessary\n- Update architecture diagrams if the service structure changes\n\n",
+    "footer": "After completing this task, run ./task complete to mark it as completed and get the prompt for the next task.\n"
+  },
+  "frontend-feature": {
+    "title": "# Frontend Task: {task_name} in {phase_name}\n\n",
+    "description": "## Task Description\nThis task involves implementing the {task_name} feature for the Frontend Dashboard of the AI CI/CD Platform.\n\n## Frontend Context\nThe Frontend Dashboard is a React/TypeScript application that provides the user interface for the platform.\n\n## Technical Details\n- Frontend directory: services/frontend-dashboard/\n- Source code: services/frontend-dashboard/src/\n- Component directory: services/frontend-dashboard/src/components/\n- Pages directory: services/frontend-dashboard/src/pages/\n- Services directory: services/frontend-dashboard/src/services/\n\n",
+    "steps": "## Implementation Steps\n{steps}\n\n## UI/UX Considerations\n- Ensure consistent styling with the rest of the application\n- Follow Material UI design patterns\n- Consider responsive design for different screen sizes\n- Implement proper loading states and error handling\n- Ensure accessibility compliance\n\n",
+    "testing": "## Testing Requirements\n- Write unit tests for React components\n- Test component rendering and interactions\n- Test state management and data flow\n- Ensure proper error handling and edge cases\n- Verify integration with backend services\n\n",
+    "documentation": "## Documentation Requirements\n- Update component documentation with JSDoc comments\n- Update services/frontend-dashboard/README.md\n- Document any new props or interfaces\n- Update any relevant UI diagrams\n\n",
+    "footer": "After completing this task, run ./task complete to mark it as completed and get the prompt for the next task.\n"
+  },
+  "integration-task": {
+    "title": "# Integration Task: {task_name} across {phase_name}\n\n",
+    "description": "## Task Description\nThis task involves implementing the {task_name} feature that spans multiple services in the AI CI/CD Platform.\n\n## Integration Context\nThis feature requires changes to multiple components of the platform to work together seamlessly.\n\n## Services Involved\n- Frontend Dashboard: UI changes and integration\n- API Gateway: Routing and authentication\n- Backend Services: Core functionality implementation\n\n",
+    "steps": "## Implementation Steps\n{steps}\n\n## Integration Points\n- API contracts between services\n- Data flow between components\n- Authentication and authorization\n- Error handling and recovery\n- Performance considerations\n\n",
+    "testing": "## Testing Requirements\n- Write unit tests for individual components\n- Write integration tests for service interactions\n- Test end-to-end workflows\n- Verify error handling across service boundaries\n- Test performance and scalability\n\n",
+    "documentation": "## Documentation Requirements\n- Update README files for all affected services\n- Update API contracts in docs/api-contracts.md\n- Update data flow documentation in docs/data-flow.md\n- Update architecture diagrams to reflect new integrations\n\n",
+    "footer": "After completing this task, run ./task complete to mark it as completed and get the prompt for the next task.\n"
+  },
+  "bug-fix": {
+    "title": "# Bug Fix: {task_name} in {phase_name}\n\n",
+    "description": "## Bug Description\nFix the {task_name} issue in the {phase_name} component of the AI CI/CD Platform.\n\n## Bug Context\nThis bug affects the {phase_name} functionality and needs to be resolved.\n\n## Reproduction Steps\n1. [Steps to reproduce the bug]\n2. [Expected behavior]\n3. [Actual behavior]\n\n",
+    "steps": "## Fix Implementation\n{steps}\n\n## Root Cause Analysis\n- Identify the underlying cause of the bug\n- Document any design issues that contributed to the bug\n- Consider preventive measures for similar bugs\n\n",
+    "testing": "## Testing Requirements\n- Write a test that reproduces the bug\n- Ensure the fix resolves the issue\n- Verify no regression in related functionality\n- Add tests to prevent future occurrences\n\n",
+    "documentation": "## Documentation Updates\n- Document the fix in the relevant README\n- Update any affected documentation\n- Consider updating developer guidelines if applicable\n\n",
+    "footer": "After completing this bug fix, run ./task complete to mark it as completed and get the prompt for the next task.\n"
+  },
+  "documentation-task": {
+    "title": "# Documentation Task: {task_name} for {phase_name}\n\n",
+    "description": "## Documentation Task Description\nThis task involves creating or updating documentation for the {phase_name} component of the AI CI/CD Platform.\n\n## Documentation Context\nThe {phase_name} component needs improved documentation to help developers understand and use it effectively.\n\n",
+    "steps": "## Documentation Steps\n{steps}\n\n## Documentation Standards\n- Use clear, concise language\n- Include code examples where appropriate\n- Provide diagrams for complex concepts\n- Follow Markdown formatting conventions\n- Ensure consistency with existing documentation\n\n",
+    "testing": "## Verification Requirements\n- Verify all links work correctly\n- Ensure code examples are accurate and runnable\n- Check for spelling and grammar errors\n- Verify documentation matches the current implementation\n- Have another team member review the documentation\n\n",
+    "documentation": "## Documentation Deliverables\n- Update relevant README files\n- Update architecture documentation if necessary\n- Update API documentation if applicable\n- Create or update user guides as needed\n\n",
+    "footer": "After completing this documentation task, run ./task complete to mark it as completed and get the prompt for the next task.\n"
+  }
+}

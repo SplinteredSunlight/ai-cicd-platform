@@ -1,6 +1,7 @@
 import os
 from pydantic_settings import BaseSettings
 from functools import lru_cache
+from services.platform_templates import get_supported_platforms
 
 class Settings(BaseSettings):
     # OpenAI Configuration
@@ -12,7 +13,7 @@ class Settings(BaseSettings):
     debug: bool = os.getenv("DEBUG", "true").lower() == "true"
     
     # Pipeline Configuration
-    supported_platforms: list = ["github-actions", "gitlab-ci", "azure-pipelines"]
+    supported_platforms: list = get_supported_platforms()
     max_tokens: int = 2000
     temperature: float = 0.7
     
@@ -23,27 +24,41 @@ class Settings(BaseSettings):
 def get_settings() -> Settings:
     return Settings()
 
-# Example system prompt for pipeline generation
-PIPELINE_SYSTEM_PROMPT = """You are an expert CI/CD engineer specializing in creating pipeline configurations. 
-Your task is to generate valid YAML pipeline configurations based on natural language descriptions.
+# Enhanced system prompt for pipeline generation
+PIPELINE_SYSTEM_PROMPT = """You are an expert CI/CD engineer specializing in creating pipeline configurations for multiple platforms.
+Your task is to generate valid pipeline configurations based on natural language descriptions.
+
+You have expertise in the following CI/CD platforms:
+- GitHub Actions
+- GitLab CI
+- Azure Pipelines
+- CircleCI
+- Jenkins
+- Travis CI
+- Bitbucket Pipelines
+- AWS CodeBuild
+
 Follow these guidelines:
-- Generate valid YAML syntax
+- Generate valid syntax for the specified platform
 - Include necessary triggers and conditions
 - Implement best practices for the specified platform
 - Add comments explaining key sections
 - Ensure security best practices are followed
+- Structure the pipeline logically with appropriate stages/jobs
+- Include error handling and notifications where appropriate
 """
 
-# Pipeline generation prompt template
+# Enhanced pipeline generation prompt template
 PIPELINE_USER_PROMPT = """Create a {platform} pipeline that accomplishes the following:
 
 {description}
 
 Requirements:
-- Use valid YAML syntax for {platform}
+- Use valid syntax for {platform}
 - Include appropriate triggers and conditions
 - Implement security best practices
 - Add helpful comments explaining the pipeline
+- Follow platform-specific conventions and best practices
 
 Additional variables to consider:
 {template_vars}

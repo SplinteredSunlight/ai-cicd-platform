@@ -1,0 +1,24 @@
+{
+  "name": "task-automation-server",
+  "version": "1.0.0",
+  "main": "build/index.js",
+  "type": "module",
+  "scripts": {
+    "build": "tsc src/index.ts --outDir build --esModuleInterop --target ES2020 --module NodeNext --moduleResolution NodeNext",
+    "start": "node build/index.js",
+    "dev": "tsc -w",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "description": "",
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.6.0",
+    "@types/fs-extra": "^11.0.4",
+    "@types/node": "^22.13.5",
+    "execa": "^9.0.0",
+    "fs-extra": "^11.2.0",
+    "typescript": "^5.7.3"
+  }
+}

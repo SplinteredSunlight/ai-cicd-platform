@@ -1,5 +1,7 @@
 import { create } from 'zustand';
 import { api, endpoints, Pipeline } from '../config/api';
+import websocketService from '../services/websocket.service';
+import { useEffect } from 'react';
 
 interface PipelineState {
   pipelines: Pipeline[];
@@ -13,6 +15,7 @@ interface PipelineState {
   selectPipeline: (pipeline: Pipeline | null) => void;
 }
 
+// Create the store
 export const usePipelineStore = create<PipelineState>((set, get) => ({
   pipelines: [],
   selectedPipeline: null,
@@ -101,3 +104,42 @@ export const usePipelineStore = create<PipelineState>((set, get) => ({
     set({ selectedPipeline: pipeline });
   },
 }));
+
+// Custom hook for WebSocket integration
+export const usePipelineWebSocket = () => {
+  const { fetchPipelines } = usePipelineStore();
+
+  useEffect(() => {
+    // Handle pipeline created event
+    const unsubscribePipelineCreated = websocketService.on('pipeline_created', (data) => {
+      console.log('WebSocket: Pipeline created', data);
+      fetchPipelines();
+    });
+
+    // Handle pipeline updated event
+    const unsubscribePipelineUpdated = websocketService.on('pipeline_updated', (data) => {
+      console.log('WebSocket: Pipeline updated', data);
+      fetchPipelines();
+    });
+
+    // Handle pipeline status changed event
+    const unsubscribePipelineStatusChanged = websocketService.on('pipeline_status_changed', (data) => {
+      console.log('WebSocket: Pipeline status changed', data);
+      fetchPipelines();
+    });
+
+    // Handle pipeline deleted event
+    const unsubscribePipelineDeleted = websocketService.on('pipeline_deleted', (data) => {
+      console.log('WebSocket: Pipeline deleted', data);
+      fetchPipelines();
+    });
+
+    // Cleanup function to unsubscribe from all events
+    return () => {
+      unsubscribePipelineCreated();
+      unsubscribePipelineUpdated();
+      unsubscribePipelineStatusChanged();
+      unsubscribePipelineDeleted();
+    };
+  }, [fetchPipelines]);
+};

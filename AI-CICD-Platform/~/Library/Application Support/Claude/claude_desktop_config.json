@@ -1,0 +1,13 @@
+{
+  "mcpServers": {
+    "task-automation": {
+      "command": "node",
+      "args": ["/Users/dc/Documents/Cline/MCP/task-automation-server/build/index.js"],
+      "env": {
+        "PROJECT_ROOT": "/Users/dc/Projects/AI-CICD-Platform"
+      },
+      "disabled": false,
+      "autoApprove": []
+    }
+  }
+}

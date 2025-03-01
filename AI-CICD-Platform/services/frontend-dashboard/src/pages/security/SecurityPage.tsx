@@ -21,10 +21,12 @@ import {
   Security as SecurityIcon,
   Warning as WarningIcon,
 } from '@mui/icons-material';
-import { useSecurityStore } from '../../stores/security.store';
+import { useSecurityStore, useSecurityWebSocket } from '../../stores/security.store';
 import { format } from 'date-fns';
 
 export default function SecurityPage() {
+  // Initialize WebSocket listeners
+  useSecurityWebSocket();
   const {
     vulnerabilities,
     scans,

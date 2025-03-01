@@ -25,6 +25,10 @@ import {
   Settings as SettingsIcon,
   AccountCircle as AccountIcon,
   Logout as LogoutIcon,
+  ViewQuilt as CustomDashboardIcon,
+  Api as ApiIcon,
+  MenuBook as UserGuidesIcon,
+  Code as DeveloperGuidesIcon,
 } from '@mui/icons-material';
 import { useAuthStore } from '../stores/auth.store';
 
@@ -42,10 +46,14 @@ interface NavItem {
 
 const navItems: NavItem[] = [
   { title: 'Dashboard', path: '/', icon: <DashboardIcon /> },
+  { title: 'Custom Dashboard', path: '/custom-dashboard', icon: <CustomDashboardIcon /> },
   { title: 'Pipelines', path: '/pipelines', icon: <PipelineIcon /> },
   { title: 'Security', path: '/security', icon: <SecurityIcon /> },
   { title: 'Debugger', path: '/debugger', icon: <DebugIcon /> },
   { title: 'Settings', path: '/settings', icon: <SettingsIcon /> },
+  { title: 'API Docs', path: '/api-docs', icon: <ApiIcon /> },
+  { title: 'User Guides', path: '/user-guides', icon: <UserGuidesIcon /> },
+  { title: 'Developer Guides', path: '/developer-guides', icon: <DeveloperGuidesIcon /> },
 ];
 
 export default function MainLayout({ children }: MainLayoutProps) {

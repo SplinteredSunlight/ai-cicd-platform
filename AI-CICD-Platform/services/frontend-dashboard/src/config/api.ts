@@ -43,6 +43,14 @@ export const endpoints = {
     applyPatch: '/debug/sessions/:sessionId/patches/:patchId/apply',
     rollbackPatch: '/debug/sessions/:sessionId/patches/:patchId/rollback',
   },
+  dashboard: {
+    list: '/dashboard/list',
+    save: '/dashboard/save',
+    delete: '/dashboard/delete/:id',
+    templates: '/dashboard/templates',
+    widgetData: '/dashboard/widget-data',
+    userPreferences: '/dashboard/preferences',
+  },
 };
 
 // API response types

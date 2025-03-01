@@ -1,0 +1,121 @@
+version: '3.8'
+
+services:
+  # Frontend Dashboard
+  frontend-dashboard:
+    build:
+      context: ./services/frontend-dashboard
+      dockerfile: Dockerfile.dev
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./services/frontend-dashboard:/app
+      - /app/node_modules
+    environment:
+      - NODE_ENV=development
+      - VITE_API_URL=http://localhost:8000
+    depends_on:
+      - api-gateway
+    networks:
+      - ai-cicd-network
+
+  # API Gateway
+  api-gateway:
+    build:
+      context: ./services/api-gateway
+      dockerfile: Dockerfile.dev
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./services/api-gateway:/app
+    environment:
+      - DEBUG=true
+      - ENVIRONMENT=development
+      - JWT_SECRET_KEY=dev_secret_key_change_in_production
+    depends_on:
+      - redis
+    networks:
+      - ai-cicd-network
+
+  # AI Pipeline Generator
+  ai-pipeline-generator:
+    build:
+      context: ./services/ai-pipeline-generator
+      dockerfile: Dockerfile.dev
+    ports:
+      - "8001:8001"
+    volumes:
+      - ./services/ai-pipeline-generator:/app
+    environment:
+      - DEBUG=true
+      - ENVIRONMENT=development
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+    networks:
+      - ai-cicd-network
+
+  # Security Enforcement
+  security-enforcement:
+    build:
+      context: ./services/security-enforcement
+      dockerfile: Dockerfile.dev
+    ports:
+      - "8002:8002"
+    volumes:
+      - ./services/security-enforcement:/app
+      - security-data:/app/data
+    environment:
+      - DEBUG=true
+      - ENVIRONMENT=development
+      - SNYK_API_KEY=${SNYK_API_KEY}
+      - TRIVY_SERVER_URL=http://trivy:8080
+    depends_on:
+      - trivy
+    networks:
+      - ai-cicd-network
+
+  # Self-Healing Debugger
+  self-healing-debugger:
+    build:
+      context: ./services/self-healing-debugger
+      dockerfile: Dockerfile.dev
+    ports:
+      - "8003:8003"
+    volumes:
+      - ./services/self-healing-debugger:/app
+      - debug-reports:/app/debug_reports
+    environment:
+      - DEBUG=true
+      - ENVIRONMENT=development
+    networks:
+      - ai-cicd-network
+
+  # Redis for caching and rate limiting
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    networks:
+      - ai-cicd-network
+
+  # Trivy for container scanning
+  trivy:
+    image: aquasec/trivy:latest
+    command: server --listen 0.0.0.0:8080
+    ports:
+      - "8080:8080"
+    volumes:
+      - trivy-data:/root/.cache/trivy
+    networks:
+      - ai-cicd-network
+
+networks:
+  ai-cicd-network:
+    driver: bridge
+
+volumes:
+  redis-data:
+  trivy-data:
+  security-data:
+  debug-reports:

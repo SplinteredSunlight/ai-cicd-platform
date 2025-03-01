@@ -1,0 +1,431 @@
+{
+  "openapi": "3.0.0",
+  "info": {
+    "title": "AI CI/CD Platform API",
+    "description": "API documentation for the AI CI/CD Platform",
+    "version": "1.0.0",
+    "contact": {
+      "name": "AI CI/CD Platform Team"
+    }
+  },
+  "servers": [
+    {
+      "url": "{baseUrl}",
+      "description": "API Server",
+      "variables": {
+        "baseUrl": {
+          "default": "http://localhost:8000",
+          "description": "API base URL"
+        }
+      }
+    }
+  ],
+  "tags": [
+    {
+      "name": "Authentication",
+      "description": "Authentication endpoints"
+    },
+    {
+      "name": "Metrics",
+      "description": "Metrics and analytics endpoints"
+    },
+    {
+      "name": "Pipelines",
+      "description": "Pipeline management endpoints"
+    },
+    {
+      "name": "Security",
+      "description": "Security and vulnerability scanning endpoints"
+    },
+    {
+      "name": "Debugging",
+      "description": "Self-healing debugger endpoints"
+    },
+    {
+      "name": "Dashboard",
+      "description": "Dashboard customization endpoints"
+    }
+  ],
+  "components": {
+    "schemas": {
+      "User": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "example": "123e4567-e89b-12d3-a456-426614174000"
+          },
+          "name": {
+            "type": "string",
+            "example": "John Doe"
+          },
+          "email": {
+            "type": "string",
+            "format": "email",
+            "example": "john.doe@example.com"
+          },
+          "role": {
+            "type": "string",
+            "enum": ["admin", "user"],
+            "example": "admin"
+          }
+        }
+      },
+      "Error": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "example": false
+          },
+          "message": {
+            "type": "string",
+            "example": "Error message"
+          },
+          "code": {
+            "type": "string",
+            "example": "UNAUTHORIZED"
+          }
+        }
+      },
+      "Pipeline": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "example": "12345"
+          },
+          "name": {
+            "type": "string",
+            "example": "Main CI Pipeline"
+          },
+          "repository": {
+            "type": "string",
+            "example": "https://github.com/user/repo"
+          },
+          "branch": {
+            "type": "string",
+            "example": "main"
+          },
+          "commit_hash": {
+            "type": "string",
+            "example": "a1b2c3d4e5f6"
+          },
+          "status": {
+            "type": "string",
+            "enum": ["pending", "running", "completed", "failed"],
+            "example": "running"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "example": "2023-01-01T12:00:00Z"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time",
+            "example": "2023-01-01T12:30:00Z"
+          }
+        }
+      },
+      "Vulnerability": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "example": "CVE-2023-12345"
+          },
+          "title": {
+            "type": "string",
+            "example": "SQL Injection Vulnerability"
+          },
+          "description": {
+            "type": "string",
+            "example": "A SQL injection vulnerability in the login form allows attackers to bypass authentication."
+          },
+          "severity": {
+            "type": "string",
+            "enum": ["critical", "high", "medium", "low"],
+            "example": "high"
+          },
+          "affected_component": {
+            "type": "string",
+            "example": "auth-service"
+          },
+          "fix_available": {
+            "type": "boolean",
+            "example": true
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "example": "2023-01-01T12:00:00Z"
+          }
+        }
+      },
+      "SecurityScan": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "example": "scan-12345"
+          },
+          "status": {
+            "type": "string",
+            "enum": ["pending", "running", "completed", "failed"],
+            "example": "completed"
+          },
+          "vulnerabilities_found": {
+            "type": "integer",
+            "example": 3
+          },
+          "started_at": {
+            "type": "string",
+            "format": "date-time",
+            "example": "2023-01-01T12:00:00Z"
+          },
+          "completed_at": {
+            "type": "string",
+            "format": "date-time",
+            "example": "2023-01-01T12:30:00Z"
+          }
+        }
+      },
+      "PipelineError": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "example": "error-12345"
+          },
+          "message": {
+            "type": "string",
+            "example": "Failed to install dependencies"
+          },
+          "category": {
+            "type": "string",
+            "example": "dependency"
+          },
+          "severity": {
+            "type": "string",
+            "example": "high"
+          },
+          "stack_trace": {
+            "type": "string",
+            "example": "Error: Failed to install dependencies\n  at install (/app/install.js:10:5)"
+          }
+        }
+      },
+      "PatchSolution": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "example": "patch-12345"
+          },
+          "error_id": {
+            "type": "string",
+            "example": "error-12345"
+          },
+          "description": {
+            "type": "string",
+            "example": "Update dependency version in package.json"
+          },
+          "type": {
+            "type": "string",
+            "example": "dependency-update"
+          },
+          "applied": {
+            "type": "boolean",
+            "example": false
+          },
+          "success": {
+            "type": "boolean",
+            "example": null
+          },
+          "is_reversible": {
+            "type": "boolean",
+            "example": true
+          }
+        }
+      },
+      "DebugSession": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "example": "session-12345"
+          },
+          "pipeline_id": {
+            "type": "string",
+            "example": "12345"
+          },
+          "status": {
+            "type": "string",
+            "example": "active"
+          },
+          "errors": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PipelineError"
+            }
+          },
+          "patches": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PatchSolution"
+            }
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "example": "2023-01-01T12:00:00Z"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time",
+            "example": "2023-01-01T12:30:00Z"
+          }
+        }
+      },
+      "ServiceHealth": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": ["healthy", "degraded", "down"],
+            "example": "healthy"
+          },
+          "response_time": {
+            "type": "number",
+            "format": "float",
+            "example": 42.5
+          },
+          "error_rate": {
+            "type": "number",
+            "format": "float",
+            "example": 0.01
+          },
+          "last_error": {
+            "type": "string",
+            "example": "Connection timeout"
+          },
+          "last_checked": {
+            "type": "string",
+            "format": "date-time",
+            "example": "2023-01-01T12:00:00Z"
+          }
+        }
+      },
+      "MetricsSummary": {
+        "type": "object",
+        "properties": {
+          "total_pipelines": {
+            "type": "integer",
+            "example": 42
+          },
+          "active_pipelines": {
+            "type": "integer",
+            "example": 5
+          },
+          "success_rate": {
+            "type": "number",
+            "format": "float",
+            "example": 0.95
+          },
+          "avg_duration": {
+            "type": "number",
+            "format": "float",
+            "example": 120.5
+          },
+          "service_health": {
+            "type": "object",
+            "additionalProperties": {
+              "$ref": "#/components/schemas/ServiceHealth"
+            }
+          }
+        }
+      }
+    },
+    "securitySchemes": {
+      "bearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT"
+      }
+    }
+  },
+  "paths": {
+    "/auth/login": {
+      "post": {
+        "tags": ["Authentication"],
+        "summary": "Login to the platform",
+        "description": "Authenticate a user and return a JWT token",
+        "operationId": "login",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["email", "password"],
+                "properties": {
+                  "email": {
+                    "type": "string",
+                    "format": "email",
+                    "example": "admin@example.com"
+                  },
+                  "password": {
+                    "type": "string",
+                    "format": "password",
+                    "example": "admin123"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful login",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "example": true
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "token": {
+                          "type": "string",
+                          "example": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+                        },
+                        "user": {
+                          "$ref": "#/components/schemas/User"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Invalid credentials",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

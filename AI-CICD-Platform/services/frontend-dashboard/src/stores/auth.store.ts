@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { api, endpoints, ApiResponse } from '../config/api';
+import websocketService from '../services/websocket.service';
 
 interface User {
   id: string;
@@ -46,6 +47,8 @@ export const useAuthStore = create<AuthState>((set) => ({
         localStorage.setItem('auth_token', mockToken);
         // Update axios default headers
         api.defaults.headers.common['Authorization'] = `Bearer ${mockToken}`;
+        // Connect to WebSocket
+        websocketService.connect(mockToken);
 
         set({
           user: mockUser,
@@ -68,6 +71,8 @@ export const useAuthStore = create<AuthState>((set) => ({
       localStorage.setItem('auth_token', token);
       // Update axios default headers
       api.defaults.headers.common['Authorization'] = `Bearer ${token}`;
+      // Connect to WebSocket
+      websocketService.connect(token);
 
       set({
         user,
@@ -90,6 +95,8 @@ export const useAuthStore = create<AuthState>((set) => ({
     localStorage.removeItem('auth_token');
     // Remove Authorization header
     delete api.defaults.headers.common['Authorization'];
+    // Disconnect from WebSocket
+    websocketService.disconnect();
 
     set({
       user: null,

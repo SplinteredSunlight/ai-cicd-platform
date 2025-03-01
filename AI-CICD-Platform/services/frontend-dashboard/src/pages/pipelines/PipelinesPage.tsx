@@ -25,7 +25,7 @@ import {
   PlayArrow as RunIcon,
   CheckCircle as ValidateIcon,
 } from '@mui/icons-material';
-import { usePipelineStore } from '../../stores/pipeline.store';
+import { usePipelineStore, usePipelineWebSocket } from '../../stores/pipeline.store';
 import { format } from 'date-fns';
 
 export default function PipelinesPage() {
@@ -42,6 +42,9 @@ export default function PipelinesPage() {
   const [openDialog, setOpenDialog] = useState(false);
   const [repository, setRepository] = useState('');
   const [branch, setBranch] = useState('');
+
+  // Initialize WebSocket listeners
+  usePipelineWebSocket();
 
   useEffect(() => {
     fetchPipelines();

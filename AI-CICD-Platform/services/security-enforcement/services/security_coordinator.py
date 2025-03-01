@@ -1,17 +1,45 @@
-from typing import List, Dict, Optional
+from typing import List, Dict, Optional, Any
 import asyncio
 from datetime import datetime
 import json
 import os
+import uuid
 from cyclonedx.model import Bom, Component, ExternalReference
 from cyclonedx.output import get_instance
 from sigstore.sign import SignerError, Signer
 
 from ..config import get_settings, VULNERABILITY_THRESHOLDS, Environment
-from ..models.vulnerability import VulnerabilityReport, SeverityLevel
+from ..models.vulnerability import VulnerabilityReport, SeverityLevel, Vulnerability
+from ..models.vulnerability_database import (
+    VulnerabilityDatabaseQuery,
+    VulnerabilityDatabaseEntry,
+    VulnerabilityStatus,
+    VulnerabilitySource
+)
+from ..models.compliance_report import (
+    ComplianceReport,
+    ComplianceStandard,
+    ComplianceRequirement,
+    ComplianceViolation,
+    ComplianceStatus,
+    ComplianceReportSummary,
+    ComplianceReportRequest
+)
+from ..models.remediation import (
+    RemediationAction,
+    RemediationPlan,
+    RemediationRequest,
+    RemediationResult,
+    RemediationStrategy,
+    RemediationStatus,
+    RemediationSource
+)
 from .trivy_scanner import TrivyScanner
 from .snyk_scanner import SnykScanner
 from .zap_scanner import ZAPScanner
+from .vulnerability_database import VulnerabilityDatabase
+from .compliance_reporting import ComplianceReportingService
+from .remediation_service import RemediationService
 
 class SecurityCoordinator:
     def __init__(self):
@@ -19,6 +47,24 @@ class SecurityCoordinator:
         self.trivy = TrivyScanner()
         self.snyk = SnykScanner()
         self.zap = ZAPScanner()
+        self.vuln_db = VulnerabilityDatabase()
+        self.compliance_service = ComplianceReportingService(self.vuln_db)
+        self.remediation_service = RemediationService(self.vuln_db)
+        
+        # Initialize vulnerability database if auto-update is enabled
+        if self.settings.vuln_db_auto_update:
+            asyncio.create_task(self._initialize_vuln_db())
+    
+    async def _initialize_vuln_db(self):
+        """Initialize vulnerability database with auto-update"""
+        try:
+            sources = [VulnerabilitySource(s) for s in self.settings.vuln_db_sources]
+            await self.vuln_db.update_database(sources=sources)
+        except Exception as e:
+            # Log error but don't fail initialization
+            import structlog
+            logger = structlog.get_logger()
+            logger.error("Failed to initialize vulnerability database", error=str(e))
 
     async def run_security_scan(
         self,
@@ -57,10 +103,16 @@ class SecurityCoordinator:
                     continue
                 if isinstance(result, VulnerabilityReport):
                     all_vulnerabilities.extend(result.vulnerabilities)
+            
+            # Enrich vulnerabilities with database information
+            enriched_vulnerabilities = await self.enrich_vulnerabilities_with_database(all_vulnerabilities)
+            
+            # Store newly discovered vulnerabilities in the database
+            await self._store_vulnerabilities_in_database(enriched_vulnerabilities)
 
             # Generate consolidated report
             consolidated_report = self._create_consolidated_report(
-                all_vulnerabilities,
+                enriched_vulnerabilities,
                 repository_url,
                 commit_sha
             )
@@ -202,3 +254,294 @@ class SecurityCoordinator:
                 self.zap.zap.core.shutdown()
         except:
             pass
+    
+    async def enrich_vulnerabilities_with_database(self, vulnerabilities: List[Vulnerability]) -> List[Vulnerability]:
+        """
+        Enrich vulnerability information with data from the vulnerability database
+        """
+        enriched_vulnerabilities = []
+        
+        for vuln in vulnerabilities:
+            # Try to find the vulnerability in the database
+            db_entry = await self.vuln_db.get_vulnerability(vuln.id)
+            
+            if db_entry:
+                # Enrich with database information
+                db_vuln = db_entry.vulnerability
+                
+                # Update fields if they're empty in the original vulnerability
+                if not vuln.title and db_vuln.title:
+                    vuln.title = db_vuln.title
+                
+                if not vuln.description and db_vuln.description:
+                    vuln.description = db_vuln.description
+                
+                if not vuln.fix_version and db_vuln.fix_version:
+                    vuln.fix_version = db_vuln.fix_version
+                
+                # Merge references
+                db_refs = set(db_vuln.references)
+                vuln_refs = set(vuln.references)
+                vuln.references = list(vuln_refs.union(db_refs))
+                
+                # Add metadata about the database entry
+                if not hasattr(vuln, "metadata"):
+                    vuln.metadata = {}
+                
+                vuln.metadata.update({
+                    "vuln_db_status": db_entry.status,
+                    "vuln_db_sources": [s.value for s in db_entry.sources],
+                    "vuln_db_last_updated": db_entry.last_updated.isoformat(),
+                    "cwe_ids": db_entry.cwe_ids,
+                    "affected_versions": db_entry.affected_versions,
+                    "fixed_versions": db_entry.fixed_versions
+                })
+                
+                # If the database has a higher CVSS score, use it
+                if db_vuln.cvss_score > vuln.cvss_score:
+                    vuln.cvss_score = db_vuln.cvss_score
+                    vuln.severity = db_vuln.severity
+            
+            enriched_vulnerabilities.append(vuln)
+        
+        return enriched_vulnerabilities
+    
+    async def update_vulnerability_database(self, sources: List[str] = None, force: bool = False) -> Dict:
+        """
+        Update the vulnerability database
+        """
+        if sources:
+            source_enums = [VulnerabilitySource(s) for s in sources]
+        else:
+            source_enums = None
+        
+        return await self.vuln_db.update_database(sources=source_enums, force=force)
+    
+    async def search_vulnerability_database(self, query: VulnerabilityDatabaseQuery) -> List[VulnerabilityDatabaseEntry]:
+        """
+        Search the vulnerability database
+        """
+        return await self.vuln_db.search_vulnerabilities(query)
+    
+    async def get_vulnerability_from_database(self, vuln_id: str) -> Optional[VulnerabilityDatabaseEntry]:
+        """
+        Get a specific vulnerability from the database
+        """
+        return await self.vuln_db.get_vulnerability(vuln_id)
+    
+    async def get_vulnerability_database_stats(self):
+        """
+        Get statistics about the vulnerability database
+        """
+        return await self.vuln_db.get_database_stats()
+    
+    async def update_vulnerability_status(self, vuln_id: str, status: VulnerabilityStatus, notes: Optional[str] = None) -> bool:
+        """
+        Update the status of a vulnerability in the database
+        """
+        return await self.vuln_db.update_vulnerability_status(vuln_id, status, notes)
+    
+    async def add_custom_vulnerability(self, entry: VulnerabilityDatabaseEntry) -> bool:
+        """
+        Add a custom vulnerability to the database
+        """
+        return await self.vuln_db.add_custom_vulnerability(entry)
+    
+    async def generate_compliance_report(
+        self,
+        request: ComplianceReportRequest
+    ) -> Dict[str, Any]:
+        """
+        Generate a compliance report for a repository
+        
+        Args:
+            request: ComplianceReportRequest object
+            
+        Returns:
+            Dictionary with the compliance report
+        """
+        try:
+            # Run a security scan to get vulnerabilities
+            scan_result = await self.run_security_scan(
+                repository_url=request.repository_url,
+                commit_sha=request.commit_sha,
+                artifact_url=request.artifact_url,
+                scan_types=["trivy", "snyk", "zap"]  # Use all scanners
+            )
+            
+            # Extract vulnerabilities from the scan result
+            vulnerabilities = []
+            if scan_result.get("status") == "success" and scan_result.get("report"):
+                report = scan_result.get("report", {})
+                vulnerabilities = report.get("vulnerabilities", [])
+            
+            # Generate the compliance report
+            compliance_report = await self.compliance_service.generate_compliance_report(
+                repository_url=request.repository_url,
+                commit_sha=request.commit_sha,
+                standards=request.standards,
+                vulnerabilities=vulnerabilities,
+                include_vulnerability_details=request.include_vulnerabilities
+            )
+            
+            # Generate a summary
+            summary = self.compliance_service.get_compliance_report_summary(compliance_report)
+            
+            # Store the report (in a real implementation, this would be stored in a database)
+            report_path = os.path.join(
+                self.settings.artifact_storage_path,
+                f"compliance-report-{compliance_report.id}.json"
+            )
+            
+            os.makedirs(os.path.dirname(report_path), exist_ok=True)
+            with open(report_path, "w") as f:
+                f.write(compliance_report.json(indent=2))
+            
+            return {
+                "status": "success",
+                "report_id": compliance_report.id,
+                "summary": summary.dict(),
+                "report_path": report_path,
+                "report": compliance_report.dict() if request.include_vulnerabilities else None
+            }
+            
+        except Exception as e:
+            import structlog
+            logger = structlog.get_logger()
+            logger.error("Compliance report generation failed", error=str(e))
+            
+            return {
+                "status": "error",
+                "message": f"Compliance report generation failed: {str(e)}"
+            }
+    
+    async def get_compliance_report(self, report_id: str) -> Optional[ComplianceReport]:
+        """
+        Get a compliance report by ID
+        
+        Args:
+            report_id: ID of the compliance report
+            
+        Returns:
+            ComplianceReport object or None if not found
+        """
+        # In a real implementation, this would retrieve the report from a database
+        report_path = os.path.join(
+            self.settings.artifact_storage_path,
+            f"compliance-report-{report_id}.json"
+        )
+        
+        if not os.path.exists(report_path):
+            return None
+        
+        try:
+            with open(report_path, "r") as f:
+                report_data = json.load(f)
+                return ComplianceReport(**report_data)
+        except Exception:
+            return None
+    
+    async def update_from_additional_sources(self, days_back: int = 30) -> Dict[str, Any]:
+        """
+        Update vulnerability database from additional sources
+        
+        Args:
+            days_back: Number of days to look back for recent vulnerabilities
+            
+        Returns:
+            Dictionary with update results
+        """
+        return await self.compliance_service.update_from_additional_sources(days_back)
+    
+    async def generate_remediation_plan(self, request: RemediationRequest) -> RemediationPlan:
+        """
+        Generate a remediation plan for vulnerabilities
+        
+        Args:
+            request: Remediation request
+            
+        Returns:
+            Remediation plan
+        """
+        return await self.remediation_service.generate_remediation_plan(request)
+    
+    async def apply_remediation_plan(self, plan_id: str) -> List[RemediationResult]:
+        """
+        Apply a remediation plan
+        
+        Args:
+            plan_id: ID of the remediation plan
+            
+        Returns:
+            List of remediation results
+        """
+        return await self.remediation_service.apply_remediation_plan(plan_id)
+    
+    async def get_remediation_plan(self, plan_id: str) -> Optional[RemediationPlan]:
+        """
+        Get a remediation plan by ID
+        
+        Args:
+            plan_id: ID of the remediation plan
+            
+        Returns:
+            Remediation plan, or None if not found
+        """
+        return await self.remediation_service.get_remediation_plan(plan_id)
+    
+    async def get_all_remediation_plans(self) -> List[RemediationPlan]:
+        """
+        Get all remediation plans
+        
+        Returns:
+            List of remediation plans
+        """
+        return await self.remediation_service.get_all_remediation_plans()
+    
+    async def get_remediation_actions(self, vulnerability_id: str) -> List[RemediationAction]:
+        """
+        Get remediation actions for a vulnerability
+        
+        Args:
+            vulnerability_id: ID of the vulnerability
+            
+        Returns:
+            List of remediation actions
+        """
+        return await self.remediation_service.get_remediation_actions(vulnerability_id)
+    
+    async def _store_vulnerabilities_in_database(self, vulnerabilities: List[Vulnerability]):
+        """
+        Store newly discovered vulnerabilities in the database
+        """
+        for vuln in vulnerabilities:
+            # Skip if the vulnerability is already in the database
+            existing = await self.vuln_db.get_vulnerability(vuln.id)
+            if existing:
+                continue
+            
+            # Create a new database entry
+            entry = VulnerabilityDatabaseEntry(
+                vulnerability=vuln,
+                sources=[VulnerabilitySource.INTERNAL],  # Mark as internally discovered
+                status=VulnerabilityStatus.ACTIVE,
+                affected_versions=[],
+                fixed_versions=[vuln.fix_version] if vuln.fix_version else [],
+                published_date=datetime.utcnow(),
+                last_updated=datetime.utcnow(),
+                notes=f"Discovered during security scan of {vuln.affected_component}"
+            )
+            
+            # Add metadata if available
+            if hasattr(vuln, "metadata") and vuln.metadata:
+                if "cwe_ids" in vuln.metadata:
+                    entry.cwe_ids = vuln.metadata["cwe_ids"]
+                
+                if "affected_versions" in vuln.metadata:
+                    entry.affected_versions = vuln.metadata["affected_versions"]
+                
+                if "fixed_versions" in vuln.metadata:
+                    entry.fixed_versions = vuln.metadata["fixed_versions"]
+            
+            # Store in database
+            await self.vuln_db.add_custom_vulnerability(entry)

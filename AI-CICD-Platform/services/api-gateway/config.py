@@ -37,11 +37,46 @@ class Settings(BaseSettings):
     jwt_secret_key: str = os.getenv("JWT_SECRET_KEY", "")
     jwt_algorithm: str = "HS256"
     jwt_expiration_minutes: int = 30
+    jwt_refresh_expiration_days: int = 7
+    jwt_blacklist_enabled: bool = True
+    jwt_blacklist_token_checks: List[str] = ["access", "refresh"]
+    
+    # Token Security
+    token_rotation_enabled: bool = True
+    token_reuse_detection_enabled: bool = True
+    token_jti_claim_enabled: bool = True
     
     # OAuth2 Configuration (if using OAuth2)
     oauth2_issuer_url: Optional[str] = None
     oauth2_client_id: Optional[str] = None
     oauth2_client_secret: Optional[str] = None
+    oauth2_scopes: List[str] = ["read", "write", "admin"]
+    
+    # SAML Configuration
+    saml_enabled: bool = False
+    saml_idp_metadata_url: Optional[str] = None
+    saml_sp_entity_id: Optional[str] = None
+    saml_acs_url: Optional[str] = None
+    
+    # Social Login Configuration
+    social_login_enabled: bool = False
+    google_client_id: Optional[str] = None
+    google_client_secret: Optional[str] = None
+    github_client_id: Optional[str] = None
+    github_client_secret: Optional[str] = None
+    
+    # Authentication Rate Limiting
+    auth_rate_limit_enabled: bool = True
+    auth_rate_limit_max_attempts: int = 5
+    auth_rate_limit_window: int = 15  # minutes
+    auth_rate_limit_lockout_duration: int = 30  # minutes
+    auth_rate_limit_progressive_lockout: bool = True
+    auth_rate_limit_track_by_username: bool = True
+    auth_rate_limit_track_by_ip: bool = True
+    
+    # Multi-factor Authentication
+    mfa_enabled: bool = True
+    mfa_required_for_roles: List[str] = ["admin"]
     
     # Rate Limiting
     rate_limit_enabled: bool = True
@@ -99,13 +134,31 @@ SERVICE_ROUTES = {
                 "method": "POST",
                 "path": "/generate",
                 "rate_limit": 50,
-                "cache_enabled": True
+                "cache_enabled": True,
+                "cache_config": "medium_term",
+                "cache_vary_by_user": False,
+                "cache_vary_by_role": True
             },
             "validate": {
                 "method": "POST",
                 "path": "/validate",
                 "rate_limit": 100,
                 "cache_enabled": False
+            },
+            "status": {
+                "method": "GET",
+                "path": "/status",
+                "rate_limit": 200,
+                "cache_enabled": True,
+                "cache_config": "short_term"
+            },
+            "list": {
+                "method": "GET",
+                "path": "/list",
+                "rate_limit": 100,
+                "cache_enabled": True,
+                "cache_config": "user_specific",
+                "cache_vary_by_user": True
             }
         }
     },
@@ -122,7 +175,23 @@ SERVICE_ROUTES = {
                 "method": "POST",
                 "path": "/sbom",
                 "rate_limit": 30,
-                "cache_enabled": True
+                "cache_enabled": True,
+                "cache_config": "medium_term"
+            },
+            "vulnerabilities": {
+                "method": "GET",
+                "path": "/vulnerabilities",
+                "rate_limit": 100,
+                "cache_enabled": True,
+                "cache_config": "short_term"
+            },
+            "compliance": {
+                "method": "GET",
+                "path": "/compliance",
+                "rate_limit": 50,
+                "cache_enabled": True,
+                "cache_config": "role_specific",
+                "cache_vary_by_role": True
             }
         }
     },
@@ -140,6 +209,21 @@ SERVICE_ROUTES = {
                 "path": "/patch",
                 "rate_limit": 30,
                 "cache_enabled": False
+            },
+            "history": {
+                "method": "GET",
+                "path": "/history",
+                "rate_limit": 100,
+                "cache_enabled": True,
+                "cache_config": "user_specific",
+                "cache_vary_by_user": True
+            },
+            "status": {
+                "method": "GET",
+                "path": "/status",
+                "rate_limit": 200,
+                "cache_enabled": True,
+                "cache_config": "short_term"
             }
         }
     }
@@ -154,6 +238,24 @@ RATE_LIMIT_CONFIGS = {
     "auth": {
         "requests": 20,
         "window": 60
+    },
+    "auth_login": {
+        "requests": 10,
+        "window": 60,
+        "lockout_threshold": 5,
+        "lockout_duration": 15  # minutes
+    },
+    "auth_mfa": {
+        "requests": 5,
+        "window": 60,
+        "lockout_threshold": 3,
+        "lockout_duration": 10  # minutes
+    },
+    "auth_refresh": {
+        "requests": 30,
+        "window": 60,
+        "lockout_threshold": 10,
+        "lockout_duration": 5  # minutes
     },
     "high_priority": {
         "requests": 200,
@@ -178,16 +280,46 @@ CIRCUIT_BREAKER_CONFIGS = {
 # Cache Configuration
 CACHE_CONFIGS = {
     "default": {
-        "ttl": 300,
-        "max_size": 1000
+        "ttl": 300,  # 5 minutes
+        "max_size": 1000,  # KB
+        "vary_by_user": False,
+        "vary_by_role": False
     },
     "short_term": {
-        "ttl": 60,
-        "max_size": 500
+        "ttl": 60,  # 1 minute
+        "max_size": 500,
+        "vary_by_user": False,
+        "vary_by_role": False
+    },
+    "medium_term": {
+        "ttl": 600,  # 10 minutes
+        "max_size": 800,
+        "vary_by_user": False,
+        "vary_by_role": True
     },
     "long_term": {
-        "ttl": 3600,
-        "max_size": 200
+        "ttl": 3600,  # 1 hour
+        "max_size": 200,
+        "vary_by_user": False,
+        "vary_by_role": False
+    },
+    "user_specific": {
+        "ttl": 300,  # 5 minutes
+        "max_size": 500,
+        "vary_by_user": True,
+        "vary_by_role": False
+    },
+    "role_specific": {
+        "ttl": 600,  # 10 minutes
+        "max_size": 800,
+        "vary_by_user": False,
+        "vary_by_role": True
+    },
+    "no_cache": {
+        "ttl": 0,
+        "max_size": 0,
+        "vary_by_user": False,
+        "vary_by_role": False
     }
 }
 
@@ -196,6 +328,20 @@ ERROR_TEMPLATES = {
     "rate_limit_exceeded": {
         "status_code": 429,
         "detail": "Rate limit exceeded. Please try again in {retry_after} seconds.",
+        "headers": {
+            "Retry-After": "{retry_after}"
+        }
+    },
+    "auth_lockout": {
+        "status_code": 429,
+        "detail": "Too many failed authentication attempts. Your account has been temporarily locked. Please try again in {lockout_time} minutes.",
+        "headers": {
+            "Retry-After": "{retry_after}"
+        }
+    },
+    "progressive_lockout": {
+        "status_code": 429,
+        "detail": "Too many failed authentication attempts. Your account has been locked for {lockout_time} minutes.",
         "headers": {
             "Retry-After": "{retry_after}"
         }

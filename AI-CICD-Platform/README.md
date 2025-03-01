@@ -6,9 +6,44 @@ An intelligent continuous integration and delivery platform that leverages artif
 
 - 🤖 **AI Pipeline Generator**: Automatically generates and optimizes CI/CD pipelines based on your project structure
 - 🛡️ **Security Enforcement**: Continuous security scanning and vulnerability detection
-- 🔧 **Self-Healing Debugger**: Automated error detection and resolution
+- 🔧 **Self-Healing Debugger**: Automated error detection and resolution with enhanced pattern recognition and auto-patching
 - 📊 **Real-time Analytics**: Comprehensive metrics and performance insights
 - 🚀 **Modern Frontend**: React-based dashboard with Material UI
+
+## Recent Enhancements
+
+### Security Enforcement - Vulnerability Database Integration
+
+The Security Enforcement component has been enhanced with additional vulnerability database integrations:
+
+- **MITRE CVE Database**: Direct integration with the authoritative MITRE CVE database for comprehensive vulnerability information
+- **OSV (Open Source Vulnerabilities)**: Integration with Google's OSV database for open source package vulnerabilities across multiple ecosystems
+- **VulnDB**: Integration with Risk Based Security's VulnDB for commercial vulnerability intelligence
+- **Enhanced OSINT Sources**: Improved aggregation of vulnerability data from multiple Open Source Intelligence sources
+
+These integrations provide more comprehensive vulnerability detection and enriched metadata for better security decision-making.
+
+### Self-Healing Debugger
+
+The Self-Healing Debugger has been significantly enhanced with:
+
+- **Expanded Error Pattern Recognition**: Support for over 100 new error patterns across multiple CI/CD platforms
+- **Advanced Auto-Patching**: Improved patch generation for network issues, resource constraints, test failures, and security vulnerabilities
+- **Enhanced Validation**: Better validation steps to ensure patches are applied correctly
+
+See the [Self-Healing Debugger README](services/self-healing-debugger/README.md) for more details.
+
+## Project Roadmap
+
+We have a comprehensive plan for enhancing the platform's core functionality. Key focus areas include:
+
+- **ML-Based Error Classification**: Using machine learning to better categorize errors and suggest fixes
+- **Interactive Debugging UI**: Improving the WebSocket-based debugging interface
+- **Multi-Platform CI/CD Support**: Expanding beyond GitHub Actions to support GitLab CI, CircleCI, Jenkins, etc.
+- **Enhanced Security Features**: Adding policy-as-code and automated remediation capabilities
+- **Expanded Vulnerability Intelligence**: Further integration with additional vulnerability databases and threat intelligence sources
+
+For the complete roadmap and implementation plan, see our [Project Plan](docs/project-plan.md).
 
 ## Architecture
 
@@ -20,22 +55,52 @@ The platform consists of several microservices:
 - **Security Enforcement**: Vulnerability scanning and security checks
 - **Self-Healing Debugger**: Automated debugging and patching
 
+![Architecture Diagram](docs/architecture.png)
+
 ## Prerequisites
 
 - Node.js >= 18
 - Python >= 3.9
-- Docker
+- Docker & Docker Compose
 - Git
 
-## Quick Start
+## Quick Start with Docker Compose
 
-1. Clone the repository:
-   ```bash
-   git clone https://github.com/splinteredsunlight/ai-cicd-platform.git
-   cd ai-cicd-platform
-   ```
+The easiest way to get started is using Docker Compose:
 
-2. Set up the frontend dashboard:
+```bash
+# Clone the repository
+git clone https://github.com/splinteredsunlight/ai-cicd-platform.git
+cd ai-cicd-platform
+
+# Create .env files from examples
+find services -name ".env.example" -exec sh -c 'cp "$1" "${1%.example}"' _ {} \;
+
+# Start all services (using Docker Compose V2 syntax)
+docker compose up
+
+# Or if you're using older Docker Compose V1
+docker-compose up
+```
+
+> **Note**: If you get a "command not found" error, you may need to install Docker Compose:
+> - **Docker Desktop**: Comes with Docker Compose V2 built-in (use `docker compose up`)
+> - **Linux**: Install with `sudo apt-get install docker-compose-plugin` (V2) or `sudo apt-get install docker-compose` (V1)
+> - **macOS**: Install with Homebrew using `brew install docker-compose`
+> - **Windows**: Install Docker Desktop which includes Docker Compose
+
+This will start all services:
+- Frontend Dashboard: http://localhost:3000
+- API Gateway: http://localhost:8000
+- AI Pipeline Generator: http://localhost:8001
+- Security Enforcement: http://localhost:8002
+- Self-Healing Debugger: http://localhost:8003
+
+## Manual Setup
+
+If you prefer to run the services without Docker:
+
+1. Set up the frontend dashboard:
    ```bash
    cd services/frontend-dashboard
    cp .env.example .env
@@ -43,7 +108,7 @@ The platform consists of several microservices:
    npm run dev
    ```
 
-3. Set up the backend services:
+2. Set up the backend services:
    ```bash
    # API Gateway
    cd ../api-gateway
@@ -67,6 +132,7 @@ The platform consists of several microservices:
    cd ../self-healing-debugger
    cp .env.example .env
    pip install -r requirements.txt
+   pip install -e .
    python main.py
    ```
 
@@ -76,34 +142,46 @@ For the frontend dashboard (development only):
 - Email: admin@example.com
 - Password: admin123
 
-## Next Steps
+## Testing
 
-1. **Set Up Backend Services**:
-   - Configure environment variables in each service's `.env` file
-   - Set up required API keys and credentials
-   - Start each service in development mode
+The project includes comprehensive test suites for all services:
 
-2. **Configure Security Settings**:
-   - Set up vulnerability scanning thresholds
-   - Configure security policies
-   - Add custom security rules
+### Backend Tests
 
-3. **Customize Pipeline Generation**:
-   - Train the AI model with your specific requirements
-   - Add custom pipeline templates
-   - Configure pipeline validation rules
+```bash
+# Run tests for a specific service
+cd services/self-healing-debugger
+pytest
 
-4. **Set Up Monitoring**:
-   - Configure metrics collection
-   - Set up alerting thresholds
-   - Customize dashboard views
+# Run tests with coverage
+pytest --cov=.
 
-5. **Production Deployment**:
-   - Set up Docker containers
-   - Configure production environment variables
-   - Set up CI/CD for the platform itself
-   - Configure SSL/TLS
-   - Set up proper authentication
+# Run specific test file
+pytest tests/test_log_analyzer.py
+```
+
+### Frontend Tests
+
+```bash
+cd services/frontend-dashboard
+npm test
+
+# Run with coverage
+npm test -- --coverage
+```
+
+## Continuous Integration
+
+The project uses GitHub Actions for CI/CD. The workflow includes:
+
+- Running tests for all services
+- Code linting and formatting checks
+- Building the frontend application
+- Generating test coverage reports
+- Docker Compose validation
+- Integration testing
+
+The workflow is configured to run on pull requests and pushes to the main branch. See `.github/workflows/ci.yml` for details.
 
 ## API Documentation
 
@@ -114,6 +192,50 @@ Each service includes its own API documentation:
 - Security Enforcement: http://localhost:8002/docs
 - Self-Healing Debugger: http://localhost:8003/docs
 
+## Project Structure
+
+```
+ai-cicd-platform/
+├── .github/workflows/    # CI/CD workflows
+├── docker-compose.yml    # Docker Compose configuration
+├── services/             # Microservices
+│   ├── api-gateway/      # API Gateway service
+│   ├── ai-pipeline-generator/ # AI Pipeline Generator service
+│   ├── frontend-dashboard/ # React frontend
+│   ├── security-enforcement/ # Security scanning service
+│   └── self-healing-debugger/ # Debugging service
+├── scripts/              # Project management scripts
+│   └── push-to-github.sh # Script to push changes to GitHub
+└── docs/                 # Documentation
+    ├── index.md          # Documentation index
+    ├── project-plan.md   # Project roadmap
+    └── architecture.md   # System architecture
+```
+
+## Development with AI Task Manager
+
+This project includes an AI Task Manager to help streamline development with Cline in VS Code. The task management system helps you:
+
+- Break down complex features into manageable tasks
+- Generate context-rich task prompts for Cline
+- Track progress on different components
+- Maintain context between development sessions
+
+To get started with the AI Task Manager:
+
+```bash
+# Show current task status
+./task status
+
+# Generate a task prompt and create a file for Cline
+./task cline
+
+# Use a specialized template for backend services
+./task cline --template backend-service
+```
+
+For more information, see [Using the Task Manager](USING-TASK-MANAGER.md).
+
 ## Contributing
 
 1. Fork the repository
@@ -121,6 +243,15 @@ Each service includes its own API documentation:
 3. Commit your changes
 4. Push to the branch
 5. Create a Pull Request
+
+### Development Guidelines
+
+- Write tests for all new features
+- Maintain code coverage above 80%
+- Follow the code style guidelines
+- Update documentation as needed
+- Use the AI Task Manager for structured development
+
 
 ## License
 
