@@ -47,13 +47,6 @@ else
     echo "If you've completed the task, please run ./task-complete.sh manually."
 fi
 
-# Push changes if requested
-echo "Do you want to push changes to remote repository? (y/n)"
-read -r PUSH_CHANGES
-
-if [[ "$PUSH_CHANGES" == "y" || "$PUSH_CHANGES" == "Y" ]]; then
-    git push
-    echo "Changes pushed to remote repository."
-else
-    echo "Changes not pushed. You can push them later with 'git push'."
-fi
+# Automatically push changes to remote repository
+git push
+echo "Changes automatically pushed to remote repository."
