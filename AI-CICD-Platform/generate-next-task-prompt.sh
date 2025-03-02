@@ -722,3 +722,37 @@ This dependency analysis capability will significantly enhance the platform's ab
 - Integrates with various deployment targets
 
 This continuous deployment automation capability will significantly enhance the platform's ability to streamline the software delivery process, enabling organizations to deploy applications more frequently, reliably, and with less manual intervention."
+    ;;
+esac
+
+# Generate the task file
+TASK_FILE="$TASK_DIR/task_${DATE_CODE}_$(echo $NEXT_TASK | sed 's/[^a-zA-Z0-9]//g').md"
+
+# Create the task file
+cat > "$TASK_FILE" << EOL
+# Task: $NEXT_TASK
+
+## Generated on: $TIMESTAMP
+
+## Background
+$TASK_BACKGROUND
+
+## Task Description
+$TASK_DESCRIPTION
+
+## Requirements
+$TASK_REQUIREMENTS
+
+## Relevant Files and Directories
+$TASK_FILES
+
+## Expected Outcome
+$TASK_OUTCOME
+EOL
+
+# Update the task tracking file
+jq --arg current "$NEXT_TASK" '.current_task = $current' "$TASK_TRACKING_FILE" > "$TASK_TRACKING_FILE.tmp"
+mv "$TASK_TRACKING_FILE.tmp" "$TASK_TRACKING_FILE"
+
+echo "Next task has been generated and is ready to work on."
+echo "You can find the task details in the tasks directory."
