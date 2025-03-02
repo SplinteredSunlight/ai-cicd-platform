@@ -1,65 +1,96 @@
+"""
+Configuration settings for the AI Pipeline Generator service.
+"""
+
 import os
-from pydantic_settings import BaseSettings
-from functools import lru_cache
-from services.platform_templates import get_supported_platforms
+from typing import Dict, Any, Optional, List
+from pydantic import BaseSettings, Field
 
 class Settings(BaseSettings):
-    # OpenAI Configuration
-    openai_api_key: str = os.getenv("OPENAI_API_KEY", "")
-    openai_model: str = os.getenv("OPENAI_MODEL", "gpt-4")
+    """Settings for the AI Pipeline Generator service."""
     
-    # Service Configuration
-    environment: str = os.getenv("ENVIRONMENT", "development")
-    debug: bool = os.getenv("DEBUG", "true").lower() == "true"
+    # Service settings
+    SERVICE_NAME: str = "ai-pipeline-generator"
+    VERSION: str = "1.0.0"
+    DEBUG: bool = Field(default=False, env="DEBUG")
     
-    # Pipeline Configuration
-    supported_platforms: list = get_supported_platforms()
-    max_tokens: int = 2000
-    temperature: float = 0.7
+    # API settings
+    API_PREFIX: str = "/api/v1"
+    
+    # Database settings
+    DB_HOST: str = Field(default="localhost", env="DB_HOST")
+    DB_PORT: int = Field(default=5432, env="DB_PORT")
+    DB_USER: str = Field(default="postgres", env="DB_USER")
+    DB_PASSWORD: str = Field(default="postgres", env="DB_PASSWORD")
+    DB_NAME: str = Field(default="pipeline_generator", env="DB_NAME")
+    
+    # Optimization settings
+    OPTIMIZATION_METRICS_STORAGE_PATH: str = Field(
+        default="data/optimization_metrics.json",
+        env="OPTIMIZATION_METRICS_STORAGE_PATH"
+    )
+    
+    # Performance profiling settings
+    PERFORMANCE_PROFILING_ENABLED: bool = Field(default=True, env="PERFORMANCE_PROFILING_ENABLED")
+    PERFORMANCE_METRICS_RETENTION_DAYS: int = Field(default=30, env="PERFORMANCE_METRICS_RETENTION_DAYS")
+    
+    # Parallel execution settings
+    MAX_PARALLEL_JOBS: int = Field(default=10, env="MAX_PARALLEL_JOBS")
+    
+    # Resource optimization settings
+    RESOURCE_OPTIMIZATION_ENABLED: bool = Field(default=True, env="RESOURCE_OPTIMIZATION_ENABLED")
+    
+    # Caching settings
+    CACHING_OPTIMIZATION_ENABLED: bool = Field(default=True, env="CACHING_OPTIMIZATION_ENABLED")
+    
+    # Supported CI/CD platforms
+    SUPPORTED_PLATFORMS: List[str] = [
+        "github-actions",
+        "gitlab-ci",
+        "circle-ci",
+        "jenkins",
+        "azure-pipelines",
+        "travis-ci",
+        "bitbucket-pipelines"
+    ]
+    
+    # Platform-specific settings
+    PLATFORM_SETTINGS: Dict[str, Dict[str, Any]] = {
+        "github-actions": {
+            "max_job_timeout_minutes": 360,
+            "default_runner": "ubuntu-latest"
+        },
+        "gitlab-ci": {
+            "max_job_timeout_minutes": 60,
+            "default_image": "alpine:latest"
+        },
+        "circle-ci": {
+            "max_job_timeout_minutes": 60,
+            "default_executor": "docker"
+        },
+        "jenkins": {
+            "max_job_timeout_minutes": 180,
+            "default_agent": "any"
+        },
+        "azure-pipelines": {
+            "max_job_timeout_minutes": 360,
+            "default_pool": "ubuntu-latest"
+        },
+        "travis-ci": {
+            "max_job_timeout_minutes": 50,
+            "default_os": "linux"
+        },
+        "bitbucket-pipelines": {
+            "max_job_timeout_minutes": 120,
+            "default_image": "atlassian/default-image:latest"
+        }
+    }
     
     class Config:
+        """Pydantic config."""
         env_file = ".env"
+        env_file_encoding = "utf-8"
+        case_sensitive = True
 
-@lru_cache()
-def get_settings() -> Settings:
-    return Settings()
-
-# Enhanced system prompt for pipeline generation
-PIPELINE_SYSTEM_PROMPT = """You are an expert CI/CD engineer specializing in creating pipeline configurations for multiple platforms.
-Your task is to generate valid pipeline configurations based on natural language descriptions.
-
-You have expertise in the following CI/CD platforms:
-- GitHub Actions
-- GitLab CI
-- Azure Pipelines
-- CircleCI
-- Jenkins
-- Travis CI
-- Bitbucket Pipelines
-- AWS CodeBuild
-
-Follow these guidelines:
-- Generate valid syntax for the specified platform
-- Include necessary triggers and conditions
-- Implement best practices for the specified platform
-- Add comments explaining key sections
-- Ensure security best practices are followed
-- Structure the pipeline logically with appropriate stages/jobs
-- Include error handling and notifications where appropriate
-"""
-
-# Enhanced pipeline generation prompt template
-PIPELINE_USER_PROMPT = """Create a {platform} pipeline that accomplishes the following:
-
-{description}
-
-Requirements:
-- Use valid syntax for {platform}
-- Include appropriate triggers and conditions
-- Implement security best practices
-- Add helpful comments explaining the pipeline
-- Follow platform-specific conventions and best practices
-
-Additional variables to consider:
-{template_vars}
-"""
+# Create settings instance
+settings = Settings()

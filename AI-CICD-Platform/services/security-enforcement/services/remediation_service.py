@@ -1,17 +1,11 @@
-import asyncio
-from datetime import datetime
-from typing import List, Dict, Optional, Any, Set
-import structlog
-import uuid
 import os
 import json
+import uuid
+from datetime import datetime
+from typing import List, Dict, Any, Optional, Tuple, Set
+import asyncio
+import logging
 
-from ..models.vulnerability import Vulnerability, SeverityLevel
-from ..models.vulnerability_database import (
-    VulnerabilityDatabaseEntry,
-    VulnerabilitySource,
-    VulnerabilityStatus
-)
 from ..models.remediation import (
     RemediationAction,
     RemediationPlan,
@@ -21,343 +15,459 @@ from ..models.remediation import (
     RemediationStatus,
     RemediationSource
 )
-from ..config import get_settings
-from .vulnerability_database import VulnerabilityDatabase
-from .ncp_integration import NCPIntegration
-from .cert_integration import CERTIntegration
-from .oval_integration import OVALIntegration
-from .epss_integration import EPSSIntegration
-from .scap_integration import SCAPIntegration
+from ..templates.remediation_templates import RemediationTemplateService
 
-logger = structlog.get_logger()
+logger = logging.getLogger(__name__)
 
 class RemediationService:
     """
-    Service for automated remediation of vulnerabilities
+    Service for managing remediation actions and plans
     """
-    
-    def __init__(self, vuln_db: Optional[VulnerabilityDatabase] = None):
-        self.settings = get_settings()
-        self.vuln_db = vuln_db or VulnerabilityDatabase()
+    def __init__(self):
+        """
+        Initialize the remediation service
+        """
+        self.base_dir = os.path.join(os.path.dirname(__file__), "..", "data")
+        self.plans_dir = os.path.join(self.base_dir, "plans")
+        self.actions_dir = os.path.join(self.base_dir, "actions")
+        self.results_dir = os.path.join(self.base_dir, "results")
         
-        # Initialize integrations
-        self.ncp_integration = NCPIntegration()
-        self.cert_integration = CERTIntegration()
-        self.oval_integration = OVALIntegration()
-        self.epss_integration = EPSSIntegration()
-        self.scap_integration = SCAPIntegration()
-        
-        # Create directory for remediation plans
-        self.plans_dir = os.path.join(self.settings.artifact_storage_path, "remediation_plans")
+        # Create directories if they don't exist
         os.makedirs(self.plans_dir, exist_ok=True)
+        os.makedirs(self.actions_dir, exist_ok=True)
+        os.makedirs(self.results_dir, exist_ok=True)
+        
+        # Initialize the template service
+        self.template_service = RemediationTemplateService()
     
-    async def generate_remediation_plan(self, request: RemediationRequest) -> RemediationPlan:
+    async def create_remediation_plan(
+        self,
+        request: RemediationRequest
+    ) -> RemediationPlan:
         """
-        Generate a remediation plan for vulnerabilities
-        
-        Args:
-            request: Remediation request
-            
-        Returns:
-            Remediation plan
+        Create a remediation plan for a repository
         """
-        try:
-            # Generate a unique ID for the plan
-            plan_id = f"PLAN-{datetime.utcnow().strftime('%Y%m%d')}-{uuid.uuid4().hex[:8]}"
-            
-            # Create a plan
-            plan = RemediationPlan(
-                id=plan_id,
-                name=f"Remediation Plan for {request.repository_url}",
-                description=f"Automated remediation plan for {request.repository_url} at commit {request.commit_sha}",
-                target=f"{request.repository_url}@{request.commit_sha}",
-                actions=[],
-                created_at=datetime.utcnow(),
-                updated_at=datetime.utcnow(),
-                status=RemediationStatus.PENDING,
-                metadata={
-                    "repository_url": request.repository_url,
-                    "commit_sha": request.commit_sha,
-                    "artifact_url": request.artifact_url,
-                    "auto_apply": request.auto_apply
-                }
-            )
-            
-            # Get vulnerabilities to remediate
-            vulnerabilities = await self._get_vulnerabilities_to_remediate(request)
-            
-            # Generate remediation actions for each vulnerability
-            for vulnerability in vulnerabilities:
-                actions = await self._generate_remediation_actions(vulnerability.vulnerability.id)
-                
-                # Add actions to the plan
-                plan.actions.extend(actions)
-            
-            # Save the plan
-            await self._save_remediation_plan(plan)
-            
-            # Apply the plan if requested
-            if request.auto_apply:
-                await self.apply_remediation_plan(plan.id)
-            
-            return plan
+        # Generate a unique ID for the plan
+        plan_id = f"PLAN-{datetime.utcnow().strftime('%Y%m%d')}-{uuid.uuid4().hex[:8]}"
         
-        except Exception as e:
-            logger.error("Error generating remediation plan", error=str(e))
-            raise
-    
-    async def _get_vulnerabilities_to_remediate(self, request: RemediationRequest) -> List[VulnerabilityDatabaseEntry]:
-        """
-        Get vulnerabilities to remediate based on the request
-        
-        Args:
-            request: Remediation request
-            
-        Returns:
-            List of vulnerabilities to remediate
-        """
-        # If specific vulnerability IDs are provided, use those
-        if request.vulnerability_ids:
-            vulnerabilities = []
-            for vuln_id in request.vulnerability_ids:
-                vuln = await self.vuln_db.get_vulnerability(vuln_id)
-                if vuln:
-                    vulnerabilities.append(vuln)
-            return vulnerabilities
-        
-        # Otherwise, search for vulnerabilities based on severity
-        from ..models.vulnerability_database import VulnerabilityDatabaseQuery
-        
-        # Build query
-        query = VulnerabilityDatabaseQuery(
-            status=[VulnerabilityStatus.ACTIVE],
-            limit=100
-        )
-        
-        # Add severity filter if provided
-        if request.max_severity:
-            # Include all severities up to max_severity
-            severities = []
-            for severity in SeverityLevel:
-                if severity.value <= request.max_severity.value:
-                    severities.append(severity)
-            query.severity = severities
-        
-        # Search for vulnerabilities
-        vulnerabilities = await self.vuln_db.search_vulnerabilities(query)
-        
-        return vulnerabilities
-    
-    async def _generate_remediation_actions(self, vulnerability_id: str) -> List[RemediationAction]:
-        """
-        Generate remediation actions for a vulnerability
-        
-        Args:
-            vulnerability_id: ID of the vulnerability
-            
-        Returns:
-            List of remediation actions
-        """
-        # Fetch remediation actions from all integrations
-        tasks = [
-            self.ncp_integration.fetch_remediation_actions(vulnerability_id),
-            self.cert_integration.fetch_remediation_actions(vulnerability_id),
-            self.oval_integration.fetch_remediation_actions(vulnerability_id),
-            self.epss_integration.fetch_remediation_actions(vulnerability_id),
-            self.scap_integration.fetch_remediation_actions(vulnerability_id)
-        ]
-        
-        # Run tasks concurrently
-        results = await asyncio.gather(*tasks, return_exceptions=True)
-        
-        # Collect actions
+        # Create actions for each vulnerability
         actions = []
-        for result in results:
-            if isinstance(result, Exception):
-                logger.error("Error fetching remediation actions", error=str(result))
+        for vuln_id in request.vulnerabilities:
+            # Find templates for the vulnerability
+            templates = self.template_service.find_templates_for_vulnerability(vuln_id)
+            
+            if not templates:
+                logger.warning(f"No templates found for vulnerability {vuln_id}")
                 continue
             
-            actions.extend(result)
-        
-        # Deduplicate actions
-        deduplicated_actions = self._deduplicate_actions(actions)
-        
-        return deduplicated_actions
-    
-    def _deduplicate_actions(self, actions: List[RemediationAction]) -> List[RemediationAction]:
-        """
-        Deduplicate remediation actions
-        
-        Args:
-            actions: List of remediation actions
+            # Use the first template for now
+            # TODO: Implement more sophisticated template selection
+            template = templates[0]
             
-        Returns:
-            Deduplicated list of remediation actions
-        """
-        # Use a set to track unique descriptions
-        seen_descriptions = set()
-        deduplicated = []
-        
-        for action in actions:
-            # Create a key for deduplication
-            key = (action.vulnerability_id, action.strategy, action.description)
+            # Create variables for the template
+            # TODO: Implement more sophisticated variable generation
+            variables = {
+                "file_path": "package.json",
+                "dependency_name": "example-dependency",
+                "current_version": "1.0.0",
+                "fixed_version": "1.1.0"
+            }
             
-            if key not in seen_descriptions:
-                seen_descriptions.add(key)
-                deduplicated.append(action)
+            # Create an action from the template
+            action = self.template_service.create_action_from_template(
+                template.id,
+                vuln_id,
+                variables
+            )
+            
+            # Save the action
+            await self._save_action(action)
+            
+            actions.append(action)
         
-        return deduplicated
-    
-    async def _save_remediation_plan(self, plan: RemediationPlan) -> None:
-        """
-        Save a remediation plan to disk
+        # Create the plan
+        plan = RemediationPlan(
+            id=plan_id,
+            name=f"Remediation Plan for {request.repository_url.split('/')[-1]}@{request.commit_sha[:8]}",
+            description=f"Remediation plan for {len(actions)} vulnerabilities",
+            target=f"{request.repository_url}@{request.commit_sha}",
+            actions=actions,
+            status=RemediationStatus.PENDING,
+            created_at=datetime.utcnow(),
+            metadata={
+                "repository_url": request.repository_url,
+                "commit_sha": request.commit_sha,
+                "auto_apply": request.auto_apply
+            }
+        )
         
-        Args:
-            plan: Remediation plan
-        """
-        plan_path = os.path.join(self.plans_dir, f"{plan.id}.json")
+        # Save the plan
+        await self._save_plan(plan)
         
-        with open(plan_path, "w") as f:
-            f.write(plan.json(indent=2))
+        return plan
     
     async def get_remediation_plan(self, plan_id: str) -> Optional[RemediationPlan]:
         """
         Get a remediation plan by ID
-        
-        Args:
-            plan_id: ID of the remediation plan
-            
-        Returns:
-            Remediation plan, or None if not found
         """
         plan_path = os.path.join(self.plans_dir, f"{plan_id}.json")
         
         if not os.path.exists(plan_path):
             return None
         
-        with open(plan_path, "r") as f:
-            plan_data = json.load(f)
-            return RemediationPlan(**plan_data)
-    
-    async def apply_remediation_plan(self, plan_id: str) -> List[RemediationResult]:
-        """
-        Apply a remediation plan
-        
-        Args:
-            plan_id: ID of the remediation plan
-            
-        Returns:
-            List of remediation results
-        """
-        # Get the plan
-        plan = await self.get_remediation_plan(plan_id)
-        if not plan:
-            raise ValueError(f"Remediation plan {plan_id} not found")
-        
-        # Update plan status
-        plan.status = RemediationStatus.IN_PROGRESS
-        plan.updated_at = datetime.utcnow()
-        await self._save_remediation_plan(plan)
-        
-        # Apply each action
-        results = []
-        for action in plan.actions:
-            result = await self._apply_remediation_action(action)
-            results.append(result)
-            
-            # Update action status
-            action.status = result.status
-            action.updated_at = datetime.utcnow()
-        
-        # Update plan status
-        if all(result.success for result in results):
-            plan.status = RemediationStatus.COMPLETED
-        else:
-            plan.status = RemediationStatus.FAILED
-        
-        plan.updated_at = datetime.utcnow()
-        await self._save_remediation_plan(plan)
-        
-        return results
-    
-    async def _apply_remediation_action(self, action: RemediationAction) -> RemediationResult:
-        """
-        Apply a remediation action
-        
-        Args:
-            action: Remediation action
-            
-        Returns:
-            Remediation result
-        """
         try:
-            # In a real implementation, this would apply the remediation action
-            # For now, we'll just simulate success
+            with open(plan_path, "r") as f:
+                plan_data = json.load(f)
             
-            # Update vulnerability status in the database
-            await self.vuln_db.update_vulnerability_status(
-                action.vulnerability_id,
-                VulnerabilityStatus.MITIGATED,
-                f"Automatically mitigated by remediation action {action.id}"
+            # Load actions
+            actions = []
+            for action_data in plan_data["actions"]:
+                action = await self.get_remediation_action(action_data["id"])
+                if action:
+                    actions.append(action)
+            
+            # Create the plan
+            plan = RemediationPlan(
+                id=plan_data["id"],
+                name=plan_data["name"],
+                description=plan_data["description"],
+                target=plan_data["target"],
+                actions=actions,
+                status=RemediationStatus(plan_data["status"]),
+                created_at=datetime.fromisoformat(plan_data["created_at"]),
+                updated_at=datetime.fromisoformat(plan_data["updated_at"]) if plan_data.get("updated_at") else None,
+                completed_at=datetime.fromisoformat(plan_data["completed_at"]) if plan_data.get("completed_at") else None,
+                metadata=plan_data.get("metadata", {})
             )
             
-            return RemediationResult(
-                action_id=action.id,
-                vulnerability_id=action.vulnerability_id,
-                success=True,
-                status=RemediationStatus.COMPLETED,
-                message=f"Successfully applied remediation action: {action.description}",
-                details={
-                    "strategy": action.strategy,
-                    "steps": action.steps,
-                    "source": action.source
-                }
-            )
-        
+            return plan
         except Exception as e:
-            logger.error("Error applying remediation action", error=str(e))
-            
-            return RemediationResult(
-                action_id=action.id,
-                vulnerability_id=action.vulnerability_id,
-                success=False,
-                status=RemediationStatus.FAILED,
-                message=f"Failed to apply remediation action: {str(e)}",
-                details={
-                    "strategy": action.strategy,
-                    "steps": action.steps,
-                    "source": action.source,
-                    "error": str(e)
-                }
-            )
-    
-    async def get_remediation_actions(self, vulnerability_id: str) -> List[RemediationAction]:
-        """
-        Get remediation actions for a vulnerability
-        
-        Args:
-            vulnerability_id: ID of the vulnerability
-            
-        Returns:
-            List of remediation actions
-        """
-        return await self._generate_remediation_actions(vulnerability_id)
+            logger.error(f"Error loading plan {plan_id}: {str(e)}")
+            return None
     
     async def get_all_remediation_plans(self) -> List[RemediationPlan]:
         """
         Get all remediation plans
-        
-        Returns:
-            List of remediation plans
         """
         plans = []
         
         for filename in os.listdir(self.plans_dir):
             if filename.endswith(".json"):
-                plan_path = os.path.join(self.plans_dir, filename)
+                plan_id = filename[:-5]  # Remove .json extension
+                plan = await self.get_remediation_plan(plan_id)
                 
-                with open(plan_path, "r") as f:
-                    plan_data = json.load(f)
-                    plans.append(RemediationPlan(**plan_data))
+                if plan:
+                    plans.append(plan)
         
         return plans
+    
+    async def update_remediation_plan_status(
+        self,
+        plan_id: str,
+        status: RemediationStatus,
+        completed_at: Optional[datetime] = None
+    ) -> Optional[RemediationPlan]:
+        """
+        Update the status of a remediation plan
+        """
+        plan = await self.get_remediation_plan(plan_id)
+        
+        if not plan:
+            return None
+        
+        plan.status = status
+        plan.updated_at = datetime.utcnow()
+        
+        if completed_at:
+            plan.completed_at = completed_at
+        elif status in [RemediationStatus.COMPLETED, RemediationStatus.FAILED, RemediationStatus.ROLLED_BACK]:
+            plan.completed_at = datetime.utcnow()
+        
+        await self._save_plan(plan)
+        
+        return plan
+    
+    async def get_remediation_action(self, action_id: str) -> Optional[RemediationAction]:
+        """
+        Get a remediation action by ID
+        """
+        action_path = os.path.join(self.actions_dir, f"{action_id}.json")
+        
+        if not os.path.exists(action_path):
+            return None
+        
+        try:
+            with open(action_path, "r") as f:
+                action_data = json.load(f)
+            
+            action = RemediationAction.from_dict(action_data)
+            
+            return action
+        except Exception as e:
+            logger.error(f"Error loading action {action_id}: {str(e)}")
+            return None
+    
+    async def get_actions_for_plan(self, plan_id: str) -> List[RemediationAction]:
+        """
+        Get all actions for a plan
+        """
+        plan = await self.get_remediation_plan(plan_id)
+        
+        if not plan:
+            return []
+        
+        return plan.actions
+    
+    async def update_remediation_action_status(
+        self,
+        action_id: str,
+        status: str,
+        result: Optional[Dict[str, Any]] = None
+    ) -> Optional[RemediationAction]:
+        """
+        Update the status of a remediation action
+        """
+        action = await self.get_remediation_action(action_id)
+        
+        if not action:
+            return None
+        
+        action.status = status
+        action.updated_at = datetime.utcnow()
+        
+        if result:
+            # Save the result
+            result_id = f"RESULT-{datetime.utcnow().strftime('%Y%m%d')}-{uuid.uuid4().hex[:8]}"
+            result_obj = RemediationResult(
+                action_id=action_id,
+                vulnerability_id=action.vulnerability_id,
+                success=status == RemediationStatus.COMPLETED,
+                status=RemediationStatus(status),
+                message=result.get("message", ""),
+                details=result,
+                created_at=datetime.utcnow()
+            )
+            
+            await self._save_result(result_obj)
+            
+            # Update the action with the result ID
+            action.metadata["result_id"] = result_id
+        
+        await self._save_action(action)
+        
+        return action
+    
+    async def execute_remediation_action(
+        self,
+        action_id: str,
+        execution_context: Optional[Dict[str, Any]] = None
+    ) -> RemediationResult:
+        """
+        Execute a remediation action
+        """
+        action = await self.get_remediation_action(action_id)
+        
+        if not action:
+            raise ValueError(f"Action not found: {action_id}")
+        
+        # Update the action status
+        await self.update_remediation_action_status(
+            action_id,
+            RemediationStatus.IN_PROGRESS
+        )
+        
+        try:
+            # Execute the action steps
+            # TODO: Implement actual execution logic
+            
+            # For now, just simulate success
+            success = True
+            message = "Remediation action executed successfully"
+            details = {
+                "execution_context": execution_context or {},
+                "steps_executed": len(action.steps),
+                "steps_succeeded": len(action.steps)
+            }
+            
+            # Update the action status
+            await self.update_remediation_action_status(
+                action_id,
+                RemediationStatus.COMPLETED if success else RemediationStatus.FAILED,
+                {
+                    "message": message,
+                    "details": details
+                }
+            )
+            
+            # Create the result
+            result = RemediationResult(
+                action_id=action_id,
+                vulnerability_id=action.vulnerability_id,
+                success=success,
+                status=RemediationStatus.COMPLETED if success else RemediationStatus.FAILED,
+                message=message,
+                details=details,
+                created_at=datetime.utcnow()
+            )
+            
+            # Save the result
+            await self._save_result(result)
+            
+            return result
+        except Exception as e:
+            logger.error(f"Error executing action {action_id}: {str(e)}")
+            
+            # Update the action status
+            await self.update_remediation_action_status(
+                action_id,
+                RemediationStatus.FAILED,
+                {
+                    "message": f"Error executing action: {str(e)}",
+                    "details": {
+                        "error": str(e),
+                        "execution_context": execution_context or {}
+                    }
+                }
+            )
+            
+            # Create the result
+            result = RemediationResult(
+                action_id=action_id,
+                vulnerability_id=action.vulnerability_id,
+                success=False,
+                status=RemediationStatus.FAILED,
+                message=f"Error executing action: {str(e)}",
+                details={
+                    "error": str(e),
+                    "execution_context": execution_context or {}
+                },
+                created_at=datetime.utcnow()
+            )
+            
+            # Save the result
+            await self._save_result(result)
+            
+            return result
+    
+    async def execute_remediation_plan(
+        self,
+        plan_id: str,
+        execution_context: Optional[Dict[str, Any]] = None
+    ) -> List[RemediationResult]:
+        """
+        Execute a remediation plan
+        """
+        plan = await self.get_remediation_plan(plan_id)
+        
+        if not plan:
+            raise ValueError(f"Plan not found: {plan_id}")
+        
+        # Update the plan status
+        await self.update_remediation_plan_status(
+            plan_id,
+            RemediationStatus.IN_PROGRESS
+        )
+        
+        results = []
+        
+        try:
+            # Execute each action in the plan
+            for action in plan.actions:
+                result = await self.execute_remediation_action(
+                    action.id,
+                    execution_context
+                )
+                
+                results.append(result)
+            
+            # Check if all actions succeeded
+            all_succeeded = all(result.success for result in results)
+            
+            # Update the plan status
+            await self.update_remediation_plan_status(
+                plan_id,
+                RemediationStatus.COMPLETED if all_succeeded else RemediationStatus.FAILED
+            )
+            
+            return results
+        except Exception as e:
+            logger.error(f"Error executing plan {plan_id}: {str(e)}")
+            
+            # Update the plan status
+            await self.update_remediation_plan_status(
+                plan_id,
+                RemediationStatus.FAILED
+            )
+            
+            # Create a result for the error
+            error_result = RemediationResult(
+                action_id="",
+                vulnerability_id="",
+                success=False,
+                status=RemediationStatus.FAILED,
+                message=f"Error executing plan: {str(e)}",
+                details={
+                    "error": str(e),
+                    "execution_context": execution_context or {}
+                },
+                created_at=datetime.utcnow()
+            )
+            
+            results.append(error_result)
+            
+            return results
+    
+    async def get_remediation_actions(self, vulnerability_id: str) -> List[RemediationAction]:
+        """
+        Get remediation actions for a vulnerability
+        """
+        actions = []
+        
+        for filename in os.listdir(self.actions_dir):
+            if filename.endswith(".json"):
+                action_id = filename[:-5]  # Remove .json extension
+                action = await self.get_remediation_action(action_id)
+                
+                if action and action.vulnerability_id == vulnerability_id:
+                    actions.append(action)
+        
+        return actions
+    
+    async def _save_plan(self, plan: RemediationPlan) -> None:
+        """
+        Save a remediation plan to disk
+        """
+        plan_path = os.path.join(self.plans_dir, f"{plan.id}.json")
+        
+        # Convert the plan to a dictionary
+        plan_dict = plan.to_dict()
+        
+        # Save the plan
+        with open(plan_path, "w") as f:
+            json.dump(plan_dict, f, indent=2)
+    
+    async def _save_action(self, action: RemediationAction) -> None:
+        """
+        Save a remediation action to disk
+        """
+        action_path = os.path.join(self.actions_dir, f"{action.id}.json")
+        
+        # Convert the action to a dictionary
+        action_dict = action.to_dict()
+        
+        # Save the action
+        with open(action_path, "w") as f:
+            json.dump(action_dict, f, indent=2)
+    
+    async def _save_result(self, result: RemediationResult) -> None:
+        """
+        Save a remediation result to disk
+        """
+        result_path = os.path.join(self.results_dir, f"{result.action_id}.json")
+        
+        # Convert the result to a dictionary
+        result_dict = result.to_dict()
+        
+        # Save the result
+        with open(result_path, "w") as f:
+            json.dump(result_dict, f, indent=2)

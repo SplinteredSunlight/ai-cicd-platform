@@ -1,14 +1,13 @@
-from pydantic import BaseModel, Field
-from typing import List, Dict, Optional, Set
-from datetime import datetime
 from enum import Enum
+from typing import List, Dict, Any, Optional
+from datetime import datetime
+import uuid
 
 from .vulnerability import SeverityLevel
-from .vulnerability_database import VulnerabilityStatus
 
 class ComplianceStandard(str, Enum):
     """
-    Supported compliance standards
+    Compliance standards
     """
     PCI_DSS = "PCI_DSS"  # Payment Card Industry Data Security Standard
     HIPAA = "HIPAA"  # Health Insurance Portability and Accountability Act
@@ -21,216 +20,270 @@ class ComplianceStandard(str, Enum):
     OWASP_TOP_10 = "OWASP_TOP_10"  # OWASP Top 10
     CUSTOM = "CUSTOM"  # Custom compliance standard
 
-class ComplianceRequirement(BaseModel):
-    """
-    Compliance requirement model
-    """
-    id: str = Field(..., description="Unique identifier for the requirement")
-    standard: ComplianceStandard = Field(..., description="Compliance standard")
-    title: str = Field(..., description="Short title of the requirement")
-    description: str = Field(..., description="Detailed description of the requirement")
-    section: Optional[str] = Field(None, description="Section or control ID within the standard")
-    severity: SeverityLevel = Field(SeverityLevel.MEDIUM, description="Severity level of non-compliance")
-    related_cwe_ids: List[str] = Field(default_factory=list, description="Related CWE IDs")
-    
-    class Config:
-        json_schema_extra = {
-            "example": {
-                "id": "PCI-DSS-6.5.1",
-                "standard": "PCI_DSS",
-                "title": "Injection Flaws",
-                "description": "Address common coding vulnerabilities in software development processes to prevent injection flaws, particularly SQL injection.",
-                "section": "6.5.1",
-                "severity": "HIGH",
-                "related_cwe_ids": ["CWE-89", "CWE-564"]
-            }
-        }
-
 class ComplianceStatus(str, Enum):
     """
-    Status of compliance with a requirement
+    Compliance status
     """
     COMPLIANT = "COMPLIANT"  # Fully compliant
     NON_COMPLIANT = "NON_COMPLIANT"  # Not compliant
     PARTIALLY_COMPLIANT = "PARTIALLY_COMPLIANT"  # Partially compliant
-    NOT_APPLICABLE = "NOT_APPLICABLE"  # Not applicable
-    UNDER_REVIEW = "UNDER_REVIEW"  # Under review
+    UNKNOWN = "UNKNOWN"  # Compliance status unknown
+    EXEMPT = "EXEMPT"  # Exempt from compliance
+    NOT_APPLICABLE = "NOT_APPLICABLE"  # Compliance not applicable
 
-class ComplianceViolation(BaseModel):
+class ComplianceControl:
     """
-    Compliance violation model
+    A compliance control
     """
-    requirement_id: str = Field(..., description="ID of the violated requirement")
-    vulnerability_ids: List[str] = Field(default_factory=list, description="IDs of related vulnerabilities")
-    description: str = Field(..., description="Description of the violation")
-    severity: SeverityLevel = Field(..., description="Severity level of the violation")
-    remediation: Optional[str] = Field(None, description="Remediation steps")
-    status: ComplianceStatus = Field(ComplianceStatus.NON_COMPLIANT, description="Status of the violation")
+    def __init__(
+        self,
+        id: str,
+        standard: ComplianceStandard,
+        name: str,
+        description: str,
+        status: ComplianceStatus,
+        evidence: Optional[List[str]] = None,
+        findings: Optional[List[Dict[str, Any]]] = None,
+        remediation: Optional[str] = None,
+        metadata: Optional[Dict[str, Any]] = None
+    ):
+        self.id = id
+        self.standard = standard
+        self.name = name
+        self.description = description
+        self.status = status
+        self.evidence = evidence or []
+        self.findings = findings or []
+        self.remediation = remediation
+        self.metadata = metadata or {}
     
-    class Config:
-        json_schema_extra = {
-            "example": {
-                "requirement_id": "PCI-DSS-6.5.1",
-                "vulnerability_ids": ["CVE-2021-12345"],
-                "description": "SQL injection vulnerability detected in login form",
-                "severity": "HIGH",
-                "remediation": "Use parameterized queries or prepared statements",
-                "status": "NON_COMPLIANT"
-            }
-        }
-
-class ComplianceReport(BaseModel):
-    """
-    Comprehensive compliance report
-    """
-    id: str = Field(..., description="Unique identifier for the report")
-    timestamp: datetime = Field(default_factory=datetime.utcnow, description="Timestamp of the report")
-    target: str = Field(..., description="Target of the compliance assessment")
-    standards: List[ComplianceStandard] = Field(..., description="Compliance standards assessed")
-    violations: List[ComplianceViolation] = Field(default_factory=list, description="List of compliance violations")
-    summary: Dict[ComplianceStandard, Dict[ComplianceStatus, int]] = Field(
-        default_factory=dict,
-        description="Summary of compliance status by standard"
-    )
-    metadata: Dict = Field(
-        default_factory=dict,
-        description="Additional metadata"
-    )
-    
-    def update_summary(self):
+    def to_dict(self) -> Dict[str, Any]:
         """
-        Update the summary counts based on violations
+        Convert to dictionary
         """
-        # Initialize summary
-        self.summary = {standard: {status: 0 for status in ComplianceStatus} for standard in self.standards}
-        
-        # Count violations by standard and status
-        for violation in self.violations:
-            # Find the standard for this requirement
-            for standard in self.standards:
-                if violation.requirement_id.startswith(standard.value):
-                    self.summary[standard][violation.status] += 1
-                    break
-    
-    class Config:
-        json_schema_extra = {
-            "example": {
-                "id": "CR-2025-02-25-001",
-                "timestamp": "2025-02-25T12:00:00Z",
-                "target": "example-app@1.0.0",
-                "standards": ["PCI_DSS", "OWASP_TOP_10"],
-                "violations": [
-                    {
-                        "requirement_id": "PCI-DSS-6.5.1",
-                        "vulnerability_ids": ["CVE-2021-12345"],
-                        "description": "SQL injection vulnerability detected in login form",
-                        "severity": "HIGH",
-                        "remediation": "Use parameterized queries or prepared statements",
-                        "status": "NON_COMPLIANT"
-                    }
-                ],
-                "summary": {
-                    "PCI_DSS": {
-                        "COMPLIANT": 10,
-                        "NON_COMPLIANT": 1,
-                        "PARTIALLY_COMPLIANT": 2,
-                        "NOT_APPLICABLE": 0,
-                        "UNDER_REVIEW": 0
-                    },
-                    "OWASP_TOP_10": {
-                        "COMPLIANT": 8,
-                        "NON_COMPLIANT": 1,
-                        "PARTIALLY_COMPLIANT": 1,
-                        "NOT_APPLICABLE": 0,
-                        "UNDER_REVIEW": 0
-                    }
-                },
-                "metadata": {
-                    "scan_duration": 120,
-                    "total_requirements": 22
-                }
-            }
+        return {
+            "id": self.id,
+            "standard": self.standard.value,
+            "name": self.name,
+            "description": self.description,
+            "status": self.status.value,
+            "evidence": self.evidence,
+            "findings": self.findings,
+            "remediation": self.remediation,
+            "metadata": self.metadata
         }
-
-class ComplianceReportRequest(BaseModel):
-    """
-    Request to generate a compliance report
-    """
-    repository_url: str = Field(..., description="URL of the repository to assess")
-    commit_sha: str = Field(..., description="Commit SHA to assess")
-    artifact_url: Optional[str] = Field(None, description="URL of the artifact to assess")
-    standards: List[ComplianceStandard] = Field(..., description="Compliance standards to assess")
-    include_vulnerabilities: bool = Field(True, description="Include vulnerability details in the report")
     
-    class Config:
-        json_schema_extra = {
-            "example": {
-                "repository_url": "https://github.com/example/repo",
-                "commit_sha": "1234567890abcdef",
-                "artifact_url": "https://example.com/artifacts/app-1.0.0.jar",
-                "standards": ["PCI_DSS", "OWASP_TOP_10"],
-                "include_vulnerabilities": True
-            }
-        }
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> 'ComplianceControl':
+        """
+        Create from dictionary
+        """
+        return cls(
+            id=data["id"],
+            standard=ComplianceStandard(data["standard"]),
+            name=data["name"],
+            description=data["description"],
+            status=ComplianceStatus(data["status"]),
+            evidence=data.get("evidence", []),
+            findings=data.get("findings", []),
+            remediation=data.get("remediation"),
+            metadata=data.get("metadata", {})
+        )
 
-class ComplianceReportSummary(BaseModel):
+class ComplianceReportSummary:
     """
     Summary of a compliance report
     """
-    id: str = Field(..., description="Unique identifier for the report")
-    timestamp: datetime = Field(..., description="Timestamp of the report")
-    target: str = Field(..., description="Target of the compliance assessment")
-    standards: List[ComplianceStandard] = Field(..., description="Compliance standards assessed")
-    overall_status: ComplianceStatus = Field(..., description="Overall compliance status")
-    summary: Dict[ComplianceStandard, Dict[ComplianceStatus, int]] = Field(
-        ...,
-        description="Summary of compliance status by standard"
-    )
-    critical_violations: int = Field(..., description="Number of critical violations")
-    high_violations: int = Field(..., description="Number of high violations")
+    def __init__(
+        self,
+        id: str,
+        repository_url: str,
+        commit_sha: str,
+        standards: List[ComplianceStandard],
+        status: Dict[ComplianceStandard, ComplianceStatus],
+        control_counts: Dict[ComplianceStandard, Dict[ComplianceStatus, int]],
+        created_at: Optional[datetime] = None,
+        metadata: Optional[Dict[str, Any]] = None
+    ):
+        self.id = id
+        self.repository_url = repository_url
+        self.commit_sha = commit_sha
+        self.standards = standards
+        self.status = status
+        self.control_counts = control_counts
+        self.created_at = created_at or datetime.utcnow()
+        self.metadata = metadata or {}
     
-    class Config:
-        json_schema_extra = {
-            "example": {
-                "id": "CR-2025-02-25-001",
-                "timestamp": "2025-02-25T12:00:00Z",
-                "target": "example-app@1.0.0",
-                "standards": ["PCI_DSS", "OWASP_TOP_10"],
-                "overall_status": "PARTIALLY_COMPLIANT",
-                "summary": {
-                    "PCI_DSS": {
-                        "COMPLIANT": 10,
-                        "NON_COMPLIANT": 1,
-                        "PARTIALLY_COMPLIANT": 2,
-                        "NOT_APPLICABLE": 0,
-                        "UNDER_REVIEW": 0
-                    },
-                    "OWASP_TOP_10": {
-                        "COMPLIANT": 8,
-                        "NON_COMPLIANT": 1,
-                        "PARTIALLY_COMPLIANT": 1,
-                        "NOT_APPLICABLE": 0,
-                        "UNDER_REVIEW": 0
-                    }
-                },
-                "critical_violations": 0,
-                "high_violations": 1
-            }
+    def to_dict(self) -> Dict[str, Any]:
+        """
+        Convert to dictionary
+        """
+        return {
+            "id": self.id,
+            "repository_url": self.repository_url,
+            "commit_sha": self.commit_sha,
+            "standards": [s.value for s in self.standards],
+            "status": {s.value: st.value for s, st in self.status.items()},
+            "control_counts": {
+                s.value: {st.value: count for st, count in counts.items()}
+                for s, counts in self.control_counts.items()
+            },
+            "created_at": self.created_at.isoformat(),
+            "metadata": self.metadata
         }
+    
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> 'ComplianceReportSummary':
+        """
+        Create from dictionary
+        """
+        standards = [ComplianceStandard(s) for s in data["standards"]]
+        status = {
+            ComplianceStandard(s): ComplianceStatus(st)
+            for s, st in data["status"].items()
+        }
+        control_counts = {
+            ComplianceStandard(s): {
+                ComplianceStatus(st): count
+                for st, count in counts.items()
+            }
+            for s, counts in data["control_counts"].items()
+        }
+        
+        return cls(
+            id=data["id"],
+            repository_url=data["repository_url"],
+            commit_sha=data["commit_sha"],
+            standards=standards,
+            status=status,
+            control_counts=control_counts,
+            created_at=datetime.fromisoformat(data["created_at"]),
+            metadata=data.get("metadata", {})
+        )
 
-class ComplianceRequirementMapping(BaseModel):
+class ComplianceReport:
     """
-    Mapping between compliance requirements and vulnerability types
+    A compliance report
     """
-    requirement_id: str = Field(..., description="ID of the requirement")
-    cwe_ids: List[str] = Field(default_factory=list, description="CWE IDs related to this requirement")
-    vulnerability_patterns: List[str] = Field(default_factory=list, description="Patterns to match in vulnerability titles/descriptions")
+    def __init__(
+        self,
+        id: str,
+        repository_url: str,
+        commit_sha: str,
+        standards: List[ComplianceStandard],
+        controls: List[ComplianceControl],
+        status: Dict[ComplianceStandard, ComplianceStatus],
+        created_at: Optional[datetime] = None,
+        metadata: Optional[Dict[str, Any]] = None
+    ):
+        self.id = id
+        self.repository_url = repository_url
+        self.commit_sha = commit_sha
+        self.standards = standards
+        self.controls = controls
+        self.status = status
+        self.created_at = created_at or datetime.utcnow()
+        self.metadata = metadata or {}
     
-    class Config:
-        json_schema_extra = {
-            "example": {
-                "requirement_id": "PCI-DSS-6.5.1",
-                "cwe_ids": ["CWE-89", "CWE-564"],
-                "vulnerability_patterns": ["sql injection", "command injection"]
-            }
+    def to_dict(self) -> Dict[str, Any]:
+        """
+        Convert to dictionary
+        """
+        return {
+            "id": self.id,
+            "repository_url": self.repository_url,
+            "commit_sha": self.commit_sha,
+            "standards": [s.value for s in self.standards],
+            "controls": [c.to_dict() for c in self.controls],
+            "status": {s.value: st.value for s, st in self.status.items()},
+            "created_at": self.created_at.isoformat(),
+            "metadata": self.metadata
         }
+    
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> 'ComplianceReport':
+        """
+        Create from dictionary
+        """
+        standards = [ComplianceStandard(s) for s in data["standards"]]
+        controls = [ComplianceControl.from_dict(c) for c in data["controls"]]
+        status = {
+            ComplianceStandard(s): ComplianceStatus(st)
+            for s, st in data["status"].items()
+        }
+        
+        return cls(
+            id=data["id"],
+            repository_url=data["repository_url"],
+            commit_sha=data["commit_sha"],
+            standards=standards,
+            controls=controls,
+            status=status,
+            created_at=datetime.fromisoformat(data["created_at"]),
+            metadata=data.get("metadata", {})
+        )
+    
+    def get_summary(self) -> ComplianceReportSummary:
+        """
+        Get a summary of the report
+        """
+        # Calculate control counts
+        control_counts = {}
+        for standard in self.standards:
+            counts = {}
+            for control in self.controls:
+                if control.standard == standard:
+                    counts[control.status] = counts.get(control.status, 0) + 1
+            control_counts[standard] = counts
+        
+        return ComplianceReportSummary(
+            id=self.id,
+            repository_url=self.repository_url,
+            commit_sha=self.commit_sha,
+            standards=self.standards,
+            status=self.status,
+            control_counts=control_counts,
+            created_at=self.created_at,
+            metadata=self.metadata
+        )
+
+class ComplianceReportRequest:
+    """
+    Request for a compliance report
+    """
+    def __init__(
+        self,
+        repository_url: str,
+        commit_sha: str,
+        standards: List[ComplianceStandard],
+        metadata: Optional[Dict[str, Any]] = None
+    ):
+        self.repository_url = repository_url
+        self.commit_sha = commit_sha
+        self.standards = standards
+        self.metadata = metadata or {}
+    
+    def to_dict(self) -> Dict[str, Any]:
+        """
+        Convert to dictionary
+        """
+        return {
+            "repository_url": self.repository_url,
+            "commit_sha": self.commit_sha,
+            "standards": [s.value for s in self.standards],
+            "metadata": self.metadata
+        }
+    
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> 'ComplianceReportRequest':
+        """
+        Create from dictionary
+        """
+        standards = [ComplianceStandard(s) for s in data["standards"]]
+        
+        return cls(
+            repository_url=data["repository_url"],
+            commit_sha=data["commit_sha"],
+            standards=standards,
+            metadata=data.get("metadata", {})
+        )

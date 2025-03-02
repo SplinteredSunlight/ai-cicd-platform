@@ -1,0 +1,74 @@
+id: policy-20250301-003
+name: Resource Limits Policy
+description: Policy for ensuring proper resource limits are defined
+type: operational
+enforcement_mode: warning
+status: active
+environments:
+  - all
+tags:
+  - operational
+  - resources
+  - kubernetes
+  - cloud
+version: 1.0.0
+rules:
+  - id: rule-20250301-011
+    name: cpu-limits
+    description: CPU limits should be defined
+    severity: medium
+    condition:
+      field: resources.limits.cpu
+      operator: exists
+    remediation_steps:
+      - Define CPU limits in resource specifications
+      - Set appropriate CPU limits based on application requirements
+      - Monitor CPU usage to determine appropriate limits
+
+  - id: rule-20250301-012
+    name: memory-limits
+    description: Memory limits should be defined
+    severity: medium
+    condition:
+      field: resources.limits.memory
+      operator: exists
+    remediation_steps:
+      - Define memory limits in resource specifications
+      - Set appropriate memory limits based on application requirements
+      - Monitor memory usage to determine appropriate limits
+
+  - id: rule-20250301-013
+    name: cpu-requests
+    description: CPU requests should be defined
+    severity: medium
+    condition:
+      field: resources.requests.cpu
+      operator: exists
+    remediation_steps:
+      - Define CPU requests in resource specifications
+      - Set appropriate CPU requests based on application requirements
+      - Monitor CPU usage to determine appropriate requests
+
+  - id: rule-20250301-014
+    name: memory-requests
+    description: Memory requests should be defined
+    severity: medium
+    condition:
+      field: resources.requests.memory
+      operator: exists
+    remediation_steps:
+      - Define memory requests in resource specifications
+      - Set appropriate memory requests based on application requirements
+      - Monitor memory usage to determine appropriate requests
+
+  - id: rule-20250301-015
+    name: storage-limits
+    description: Storage limits should be defined
+    severity: medium
+    condition:
+      field: resources.limits.storage
+      operator: exists
+    remediation_steps:
+      - Define storage limits in resource specifications
+      - Set appropriate storage limits based on application requirements
+      - Monitor storage usage to determine appropriate limits

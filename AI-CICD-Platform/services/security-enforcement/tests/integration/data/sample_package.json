@@ -1,0 +1,25 @@
+{
+  "name": "test-project",
+  "version": "1.0.0",
+  "description": "A test project for remediation integration tests",
+  "main": "index.js",
+  "scripts": {
+    "test": "jest",
+    "start": "node index.js"
+  },
+  "dependencies": {
+    "example-dependency": "1.0.0",
+    "secure-library": "2.0.0",
+    "another-package": "3.1.0"
+  },
+  "devDependencies": {
+    "jest": "29.0.0",
+    "eslint": "8.0.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/test/repo"
+  },
+  "author": "Test Author",
+  "license": "MIT"
+}

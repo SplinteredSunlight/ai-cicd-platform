@@ -283,36 +283,63 @@ class LogAnalyzer:
         
         return errors
     
-    async def _determine_category_with_ml(self, error_message: str, context: Optional[Dict] = None) -> Tuple[ErrorCategory, float]:
+    async def _determine_category_with_ml(
+        self, 
+        error_message: str, 
+        context: Optional[Dict] = None,
+        error_id: Optional[str] = None
+    ) -> Tuple[ErrorCategory, float]:
         """
         Determine error category using ML classification.
         
         Args:
             error_message: The error message text
             context: Additional context for the error
+            error_id: Optional error ID for tracking
             
         Returns:
             Tuple of (category, confidence)
         """
         try:
-            # Use ML classifier service to classify error
-            result = await self.ml_classifier_service.classify_error(error_message)
+            # Create error object for classification
+            error_obj = {
+                "message": error_message,
+                "context": context or {},
+                "error_id": error_id or f"err_{datetime.utcnow().timestamp()}"
+            }
+            
+            # Use ML classifier service to classify error with detailed results
+            result = await self.ml_classifier_service.classify_error(
+                error_obj,
+                confidence_threshold=self.settings.ml_confidence_threshold,
+                detailed=True
+            )
             
             if result["status"] == "success" and "classifications" in result:
                 # Get category prediction and confidence
                 category_result = result["classifications"].get("category", {})
                 prediction = category_result.get("prediction")
                 confidence = category_result.get("confidence", 0.0)
+                meets_threshold = category_result.get("meets_threshold", False)
                 
-                if prediction and confidence > self.settings.ml_confidence_threshold:
+                if prediction and meets_threshold:
                     # Convert prediction to ErrorCategory enum
                     try:
                         return ErrorCategory[prediction.upper()], confidence
                     except (KeyError, ValueError):
                         logger.warning(f"Invalid category prediction: {prediction}")
+                        
+                # If we have a prediction but it doesn't meet the threshold, log it
+                elif prediction:
+                    logger.info(
+                        f"ML prediction '{prediction}' with confidence {confidence:.2f} "
+                        f"below threshold {self.settings.ml_confidence_threshold}"
+                    )
             
             # Fall back to rule-based approach
-            return self._determine_category_rule_based(error_message), 0.0
+            rule_based_category = self._determine_category_rule_based(error_message)
+            logger.info(f"Using rule-based category: {rule_based_category}")
+            return rule_based_category, 0.0
             
         except Exception as e:
             logger.warning(f"ML classification failed: {str(e)}")

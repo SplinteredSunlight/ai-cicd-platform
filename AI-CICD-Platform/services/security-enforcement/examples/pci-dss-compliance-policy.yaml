@@ -1,0 +1,95 @@
+id: policy-20250301-002
+name: PCI DSS Compliance Policy
+description: Policy for ensuring compliance with Payment Card Industry Data Security Standard
+type: compliance
+enforcement_mode: blocking
+status: active
+environments:
+  - all
+tags:
+  - compliance
+  - pci-dss
+  - security
+version: 1.0.0
+rules:
+  - id: rule-20250301-006
+    name: pci-dss-req-1
+    description: Install and maintain network security controls
+    severity: critical
+    condition:
+      operator: and
+      conditions:
+        - field: network.firewall.enabled
+          operator: equals
+          value: true
+        - field: network.firewall.rules.default_deny
+          operator: equals
+          value: true
+    remediation_steps:
+      - Implement and configure firewalls between all wireless networks and the cardholder data environment
+      - Maintain a current network diagram that documents all connections between the cardholder data environment and other networks
+
+  - id: rule-20250301-007
+    name: pci-dss-req-2
+    description: Apply secure configurations to all system components
+    severity: high
+    condition:
+      operator: and
+      conditions:
+        - field: system.secure_configuration
+          operator: equals
+          value: true
+        - field: system.default_accounts.changed
+          operator: equals
+          value: true
+    remediation_steps:
+      - Implement secure configuration standards for all system components
+      - Change default passwords and other security parameters
+
+  - id: rule-20250301-008
+    name: pci-dss-req-3
+    description: Protect stored account data
+    severity: critical
+    condition:
+      operator: and
+      conditions:
+        - field: data.encryption.at_rest
+          operator: equals
+          value: true
+        - field: data.pci.pan.masked
+          operator: equals
+          value: true
+    remediation_steps:
+      - Keep cardholder data storage to a minimum
+      - Mask PAN when displayed
+      - Render PAN unreadable anywhere it is stored
+
+  - id: rule-20250301-009
+    name: pci-dss-req-4
+    description: Protect cardholder data with strong cryptography during transmission
+    severity: critical
+    condition:
+      field: data.encryption.in_transit
+      operator: equals
+      value: true
+    remediation_steps:
+      - Use strong cryptography and security protocols to safeguard sensitive cardholder data during transmission
+      - Never send unprotected PANs by end-user messaging technologies
+
+  - id: rule-20250301-010
+    name: pci-dss-req-6
+    description: Develop and maintain secure systems and applications
+    severity: high
+    condition:
+      operator: and
+      conditions:
+        - field: system.patch_management.enabled
+          operator: equals
+          value: true
+        - field: system.secure_development.enabled
+          operator: equals
+          value: true
+    remediation_steps:
+      - Establish a process to identify security vulnerabilities and assign a risk ranking to newly discovered vulnerabilities
+      - Develop applications based on secure coding guidelines
+      - Review custom code prior to release to production or customers

@@ -161,6 +161,58 @@ class WebSocketService:
             category=EventCategory.DEBUG
         ))
         
+    async def emit_ml_training_started(self, training_id: str, training_data: Dict[str, Any], target_users: Optional[List[str]] = None):
+        """Helper method to emit ML training started events"""
+        await self.emit_event(WebSocketEvent(
+            event_type="debug_ml_training_started",
+            data={
+                "trainingId": training_id,
+                "training": training_data
+            },
+            target_users=target_users,
+            priority=EventPriority.LOW,
+            category=EventCategory.DEBUG
+        ))
+        
+    async def emit_ml_training_progress(self, training_id: str, progress_data: Dict[str, Any], target_users: Optional[List[str]] = None):
+        """Helper method to emit ML training progress events"""
+        await self.emit_event(WebSocketEvent(
+            event_type="debug_ml_training_progress",
+            data={
+                "trainingId": training_id,
+                "progress": progress_data
+            },
+            target_users=target_users,
+            priority=EventPriority.LOW,
+            category=EventCategory.DEBUG
+        ))
+        
+    async def emit_ml_training_completed(self, training_id: str, result_data: Dict[str, Any], target_users: Optional[List[str]] = None):
+        """Helper method to emit ML training completed events"""
+        await self.emit_event(WebSocketEvent(
+            event_type="debug_ml_training_completed",
+            data={
+                "trainingId": training_id,
+                "result": result_data
+            },
+            target_users=target_users,
+            priority=EventPriority.MEDIUM,
+            category=EventCategory.DEBUG
+        ))
+        
+    async def emit_ml_model_evaluation(self, model_id: str, evaluation_data: Dict[str, Any], target_users: Optional[List[str]] = None):
+        """Helper method to emit ML model evaluation events"""
+        await self.emit_event(WebSocketEvent(
+            event_type="debug_ml_model_evaluation",
+            data={
+                "modelId": model_id,
+                "evaluation": evaluation_data
+            },
+            target_users=target_users,
+            priority=EventPriority.LOW,
+            category=EventCategory.DEBUG
+        ))
+        
     async def emit_architecture_diagram(self, diagram_id: str, diagram_data: Dict[str, Any], target_users: Optional[List[str]] = None):
         """Helper method to emit architecture diagram events"""
         await self.emit_event(WebSocketEvent(

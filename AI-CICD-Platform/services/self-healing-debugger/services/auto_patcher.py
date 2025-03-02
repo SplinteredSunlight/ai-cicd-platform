@@ -1,4 +1,4 @@
-from typing import List, Dict, Optional, Tuple
+from typing import List, Dict, Optional, Tuple, Any
 import asyncio
 import json
 import os
@@ -15,12 +15,25 @@ from models.pipeline_debug import (
     ErrorCategory,
     ErrorSeverity
 )
+from services.ml_classifier_service import MLClassifierService
 
 class AutoPatcher:
-    def __init__(self):
+    def __init__(self, ml_classifier_service=None):
         self.settings = get_settings()
         self.openai_client = OpenAI(api_key=self.settings.openai_api_key)
         self.applied_patches: Dict[str, PatchSolution] = {}
+        
+        # Initialize ML classifier service if not provided
+        if ml_classifier_service:
+            self.ml_classifier_service = ml_classifier_service
+        else:
+            try:
+                self.ml_classifier_service = MLClassifierService()
+                self.use_ml_classification = self.settings.use_ml_classification if hasattr(self.settings, 'use_ml_classification') else True
+            except Exception as e:
+                print(f"Failed to initialize ML classifier service: {str(e)}")
+                self.ml_classifier_service = None
+                self.use_ml_classification = False
 
     async def generate_patch(
         self,
@@ -138,14 +151,37 @@ class AutoPatcher:
         context: Dict
     ) -> PatchSolution:
         """
-        Generate a solution using AI
+        Generate a solution using AI, enhanced with ML classification results
         """
         try:
-            # Prepare prompt
+            # Get ML classification results if available
+            ml_classification = None
+            if self.ml_classifier_service and hasattr(self, 'use_ml_classification') and self.use_ml_classification:
+                try:
+                    ml_classification = await self.ml_classifier_service.classify_error(
+                        error,
+                        detailed=True,
+                        confidence_threshold=0.6
+                    )
+                    
+                    if ml_classification["status"] == "success":
+                        # Add ML classification results to context
+                        context["ml_classification"] = ml_classification["classifications"]
+                        context["ml_confidence"] = ml_classification.get("overall_confidence", 0.0)
+                        
+                        # Log ML classification results
+                        print(f"ML classification results: {json.dumps(ml_classification['classifications'], indent=2)}")
+                except Exception as e:
+                    print(f"ML classification failed: {str(e)}")
+            
+            # Detect programming language from error and context
+            language = self._detect_language(error, context)
+            
+            # Prepare prompt with enhanced context
             prompt = PROMPT_TEMPLATES["solution_generation"].format(
                 error_message=error.message,
                 context=json.dumps(context, indent=2),
-                language="python"  # TODO: Detect appropriate language
+                language=language
             )
 
             # Get AI response
@@ -161,6 +197,17 @@ class AutoPatcher:
 
             solution_text = response.choices[0].message.content
             
+            # Calculate estimated success rate based on ML confidence if available
+            estimated_success_rate = 0.7  # Default conservative estimate
+            if ml_classification and "overall_confidence" in ml_classification:
+                # Scale success rate based on ML confidence
+                ml_confidence = ml_classification["overall_confidence"]
+                if ml_confidence > 0.8:
+                    estimated_success_rate = 0.85
+                elif ml_confidence > 0.6:
+                    estimated_success_rate = 0.75
+                # else keep default
+            
             # Create patch solution
             return PatchSolution(
                 solution_id=f"patch_{datetime.utcnow().timestamp()}",
@@ -169,12 +216,74 @@ class AutoPatcher:
                 patch_script=self._extract_code_from_solution(solution_text),
                 is_reversible=False,  # AI-generated patches are not automatically reversible
                 requires_approval=True,
-                estimated_success_rate=0.7,  # Conservative estimate for AI solutions
+                estimated_success_rate=estimated_success_rate,
                 validation_steps=self._extract_validation_steps(solution_text)
             )
 
         except Exception as e:
             raise Exception(f"AI solution generation failed: {str(e)}")
+    
+    def _detect_language(self, error: PipelineError, context: Dict) -> str:
+        """
+        Detect the programming language from error and context
+        """
+        error_message = error.message.lower()
+        
+        # Check for Python-specific errors
+        if any(term in error_message for term in [
+            "importerror", "modulenotfounderror", "syntaxerror", "indentationerror",
+            "python", "pip", "pytest", "django", "flask", "fastapi"
+        ]):
+            return "python"
+        
+        # Check for JavaScript/Node.js errors
+        elif any(term in error_message for term in [
+            "npm", "node", "javascript", "js", "typescript", "ts", "react", "angular", "vue",
+            "uncaught referenceerror", "cannot find module", "undefined is not a function"
+        ]):
+            return "javascript"
+        
+        # Check for Java errors
+        elif any(term in error_message for term in [
+            "java.lang.", "nullpointerexception", "classnotfoundexception", "maven", "gradle",
+            "spring", "java", "jar", "class"
+        ]):
+            return "java"
+        
+        # Check for Go errors
+        elif any(term in error_message for term in [
+            "go", "golang", "panic:", "undefined:", "cannot use", "go mod", "go get"
+        ]):
+            return "go"
+        
+        # Check for Ruby errors
+        elif any(term in error_message for term in [
+            "ruby", "rails", "gem", "bundler", "rake", "nameerror", "nomethoderror"
+        ]):
+            return "ruby"
+        
+        # Check for C/C++ errors
+        elif any(term in error_message for term in [
+            "segmentation fault", "memory access", "undefined reference", "linker",
+            "gcc", "g++", "clang", "cmake", "make"
+        ]):
+            return "c++"
+        
+        # Check for shell script errors
+        elif any(term in error_message for term in [
+            "bash", "sh:", "command not found", "no such file or directory",
+            "permission denied", "syntax error near unexpected token"
+        ]):
+            return "bash"
+        
+        # Check for Docker/container errors
+        elif any(term in error_message for term in [
+            "docker", "container", "image", "dockerfile", "kubernetes", "k8s", "pod"
+        ]):
+            return "docker"
+        
+        # Default to Python as a safe choice
+        return "python"
 
     async def _generate_dependency_patch(
         self,

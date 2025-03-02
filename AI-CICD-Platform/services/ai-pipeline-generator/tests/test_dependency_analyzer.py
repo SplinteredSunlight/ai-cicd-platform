@@ -1,227 +1,232 @@
+"""
+Tests for the dependency analyzer service.
+"""
+
+import os
 import pytest
-from unittest.mock import Mock, patch
-import copy
-from services.dependency_analyzer import DependencyAnalyzerService
+from unittest.mock import MagicMock, patch
 
-# Sample pipeline configurations for testing
-SAMPLE_PIPELINES = {
-    "github-actions": {
-        "name": "Test Pipeline",
-        "on": {
-            "push": {
-                "branches": ["main"]
-            }
-        },
-        "jobs": {
-            "build": {
-                "runs-on": "ubuntu-latest",
-                "steps": [
-                    {
-                        "uses": "actions/checkout@v3"
-                    },
-                    {
-                        "name": "Build",
-                        "run": "npm run build"
-                    }
+from ..services.dependency_analyzer import DependencyAnalyzerService
+from ..models.dependency_graph import DependencyGraph, NodeMetadata, DependencyMetadata, NodeType, DependencyType
+
+class TestDependencyAnalyzerService:
+    """Tests for the DependencyAnalyzerService class."""
+    
+    def setup_method(self):
+        """Set up test fixtures."""
+        self.service = DependencyAnalyzerService()
+    
+    def test_init(self):
+        """Test initialization."""
+        assert isinstance(self.service, DependencyAnalyzerService)
+    
+    def test_create_dependency_graph(self):
+        """Test creating a dependency graph."""
+        # Create mock data
+        code_dependencies = {
+            "imports": {
+                "file1.py": [
+                    {"name": "module1", "file": "module1.py"}
                 ]
             },
-            "test": {
-                "runs-on": "ubuntu-latest",
-                "needs": ["build"],
-                "steps": [
-                    {
-                        "uses": "actions/checkout@v3"
-                    },
-                    {
-                        "name": "Test",
-                        "run": "npm test"
-                    }
+            "function_calls": {
+                "file1.py": [
+                    {"name": "func1", "file": "module1.py"}
                 ]
             },
-            "lint": {
-                "runs-on": "ubuntu-latest",
-                "needs": ["build"],
-                "steps": [
-                    {
-                        "uses": "actions/checkout@v3"
-                    },
-                    {
-                        "name": "Lint",
-                        "run": "npm run lint"
-                    }
-                ]
-            },
-            "deploy": {
-                "runs-on": "ubuntu-latest",
-                "needs": ["test", "lint", "build"],  # Redundant dependency on build
-                "steps": [
-                    {
-                        "uses": "actions/checkout@v3"
-                    },
-                    {
-                        "name": "Deploy",
-                        "run": "npm run deploy"
-                    }
-                ]
+            "class_hierarchy": {
+                "Class1": {
+                    "file": "file1.py",
+                    "parents": ["BaseClass"]
+                }
             }
         }
-    },
-    "gitlab-ci": {
-        "stages": ["build", "test", "deploy"],
-        "build_job": {
-            "stage": "build",
-            "script": ["npm run build"]
-        },
-        "test_job": {
-            "stage": "test",
-            "script": ["npm test"],
-            "needs": ["build_job"]
-        },
-        "lint_job": {
-            "stage": "test",
-            "script": ["npm run lint"],
-            "needs": ["build_job"]
-        },
-        "deploy_job": {
-            "stage": "deploy",
-            "script": ["npm run deploy"],
-            "needs": ["test_job", "lint_job", "build_job"]  # Redundant dependency on build_job
+        
+        package_dependencies = {
+            "dependency_graphs": {
+                "pip": {
+                    "nodes": {
+                        "package:pkg1": {
+                            "type": "package",
+                            "attributes": {"name": "pkg1"}
+                        }
+                    },
+                    "edges": [
+                        {
+                            "source": "package:project",
+                            "target": "package:pkg1",
+                            "metadata": {
+                                "type": "package",
+                                "is_direct": True
+                            }
+                        }
+                    ]
+                }
+            }
         }
-    }
-}
-
-@pytest.fixture
-def analyzer():
-    return DependencyAnalyzerService()
-
-def test_analyze_github_actions_dependencies(analyzer):
-    """Test analyzing dependencies in a GitHub Actions workflow."""
-    pipeline_config = copy.deepcopy(SAMPLE_PIPELINES["github-actions"])
-    analysis = analyzer._analyze_github_actions_dependencies(pipeline_config)
+        
+        # Call the method
+        graph = self.service.create_dependency_graph(code_dependencies, package_dependencies)
+        
+        # Check the result
+        assert isinstance(graph, DependencyGraph)
+        assert len(graph.get_all_nodes()) > 0
+        assert len(graph.get_all_edges()) > 0
     
-    # Check that the analysis contains the expected keys
-    assert "dependencies" in analysis
-    assert "dependency_graph" in analysis
-    assert "root_jobs" in analysis
-    assert "leaf_jobs" in analysis
-    assert "parallel_groups" in analysis
-    assert "critical_path" in analysis
-    assert "optimization_opportunities" in analysis
+    @patch('services.ai-pipeline-generator.services.code_analyzer.CodeAnalyzerService')
+    @patch('services.ai-pipeline-generator.services.package_analyzer.PackageAnalyzerService')
+    def test_analyze_project(self, mock_package_analyzer, mock_code_analyzer):
+        """Test analyzing a project."""
+        # Create mock data
+        project_path = "/path/to/project"
+        languages = ["python"]
+        include_patterns = ["**/*.py"]
+        exclude_patterns = ["**/test_*.py"]
+        
+        # Configure mocks
+        mock_code_analyzer_instance = MagicMock()
+        mock_code_analyzer.return_value = mock_code_analyzer_instance
+        mock_code_analyzer_instance.analyze_code_dependencies.return_value = {
+            "imports": {},
+            "function_calls": {},
+            "class_hierarchy": {}
+        }
+        
+        mock_package_analyzer_instance = MagicMock()
+        mock_package_analyzer.return_value = mock_package_analyzer_instance
+        mock_package_analyzer_instance.analyze_project_dependencies.return_value = {
+            "dependency_graphs": {}
+        }
+        
+        # Call the method
+        with patch.object(self.service, 'create_dependency_graph') as mock_create_graph:
+            mock_create_graph.return_value = DependencyGraph()
+            graph = self.service.analyze_project(
+                project_path,
+                languages=languages,
+                include_patterns=include_patterns,
+                exclude_patterns=exclude_patterns
+            )
+        
+        # Check the result
+        assert isinstance(graph, DependencyGraph)
+        mock_code_analyzer_instance.analyze_code_dependencies.assert_called_once_with(
+            project_path,
+            languages=languages,
+            include_patterns=include_patterns,
+            exclude_patterns=exclude_patterns
+        )
+        mock_package_analyzer_instance.analyze_project_dependencies.assert_called_once_with(
+            project_path
+        )
     
-    # Check dependencies
-    assert analysis["dependencies"]["build"] == []
-    assert analysis["dependencies"]["test"] == ["build"]
-    assert analysis["dependencies"]["lint"] == ["build"]
-    assert analysis["dependencies"]["deploy"] == ["test", "lint", "build"]
+    def test_calculate_metrics(self):
+        """Test calculating metrics."""
+        # Create a test graph
+        graph = DependencyGraph()
+        
+        # Add nodes
+        graph.add_node("file:file1.py", NodeMetadata(type=NodeType.FILE, path="file1.py"))
+        graph.add_node("file:file2.py", NodeMetadata(type=NodeType.FILE, path="file2.py"))
+        graph.add_node("class:Class1", NodeMetadata(type=NodeType.CLASS, path="file1.py"))
+        graph.add_node("package:pkg1", NodeMetadata(type=NodeType.PACKAGE))
+        
+        # Add edges
+        graph.add_edge("file:file1.py", "file:file2.py", DependencyMetadata(type=DependencyType.IMPORT))
+        graph.add_edge("file:file1.py", "class:Class1", DependencyMetadata(type=DependencyType.CUSTOM))
+        graph.add_edge("class:Class1", "package:pkg1", DependencyMetadata(type=DependencyType.PACKAGE))
+        
+        # Call the method
+        metrics = self.service.calculate_metrics(graph)
+        
+        # Check the result
+        assert isinstance(metrics, dict)
+        assert metrics["node_count"] == 4
+        assert metrics["edge_count"] == 3
+        assert "node_types" in metrics
+        assert "edge_types" in metrics
+        assert "connectivity" in metrics
+        assert "complexity" in metrics
     
-    # Check root and leaf jobs
-    assert "build" in analysis["root_jobs"]
-    assert "deploy" in analysis["leaf_jobs"]
+    def test_export_dependency_graph(self):
+        """Test exporting a dependency graph."""
+        # Create a test graph
+        graph = DependencyGraph()
+        
+        # Add nodes
+        graph.add_node("file:file1.py", NodeMetadata(type=NodeType.FILE, path="file1.py"))
+        graph.add_node("file:file2.py", NodeMetadata(type=NodeType.FILE, path="file2.py"))
+        
+        # Add edges
+        graph.add_edge("file:file1.py", "file:file2.py", DependencyMetadata(type=DependencyType.IMPORT))
+        
+        # Call the method with JSON format
+        json_result = self.service.export_dependency_graph(graph, format="json")
+        
+        # Check the result
+        assert isinstance(json_result, str)
+        assert "nodes" in json_result
+        assert "edges" in json_result
+        
+        # Call the method with DOT format
+        dot_result = self.service.export_dependency_graph(graph, format="dot")
+        
+        # Check the result
+        assert isinstance(dot_result, str)
+        assert "digraph" in dot_result
+        assert "file:file1.py" in dot_result
+        assert "file:file2.py" in dot_result
+        
+        # Test with unsupported format
+        with pytest.raises(ValueError):
+            self.service.export_dependency_graph(graph, format="unsupported")
     
-    # Check optimization opportunities
-    redundant_deps = [opp for opp in analysis["optimization_opportunities"] 
-                     if opp["type"] == "redundant_dependency"]
-    assert len(redundant_deps) > 0
-    assert redundant_deps[0]["job_id"] == "deploy"
-    assert "build" in redundant_deps[0]["redundant_dependencies"]
-
-def test_analyze_gitlab_ci_dependencies(analyzer):
-    """Test analyzing dependencies in a GitLab CI pipeline."""
-    pipeline_config = copy.deepcopy(SAMPLE_PIPELINES["gitlab-ci"])
-    analysis = analyzer._analyze_gitlab_ci_dependencies(pipeline_config)
+    def test_import_dependency_graph(self):
+        """Test importing a dependency graph."""
+        # Create a test graph
+        graph = DependencyGraph()
+        
+        # Add nodes
+        graph.add_node("file:file1.py", NodeMetadata(type=NodeType.FILE, path="file1.py"))
+        graph.add_node("file:file2.py", NodeMetadata(type=NodeType.FILE, path="file2.py"))
+        
+        # Add edges
+        graph.add_edge("file:file1.py", "file:file2.py", DependencyMetadata(type=DependencyType.IMPORT))
+        
+        # Export to JSON
+        json_data = graph.to_json()
+        
+        # Call the method
+        imported_graph = self.service.import_dependency_graph(json_data, format="json")
+        
+        # Check the result
+        assert isinstance(imported_graph, DependencyGraph)
+        assert len(imported_graph.get_all_nodes()) == 2
+        assert len(imported_graph.get_all_edges()) == 1
+        
+        # Test with unsupported format
+        with pytest.raises(ValueError):
+            self.service.import_dependency_graph("{}", format="unsupported")
     
-    # Check that the analysis contains the expected keys
-    assert "dependencies" in analysis
-    assert "dependency_graph" in analysis
-    assert "root_jobs" in analysis
-    assert "leaf_jobs" in analysis
-    assert "parallel_groups" in analysis
-    assert "optimization_opportunities" in analysis
-    
-    # Check dependencies
-    assert analysis["dependencies"]["build_job"] == []
-    assert analysis["dependencies"]["test_job"] == ["build_job"]
-    assert analysis["dependencies"]["lint_job"] == ["build_job"]
-    assert analysis["dependencies"]["deploy_job"] == ["test_job", "lint_job", "build_job"]
-    
-    # Check root and leaf jobs
-    assert "build_job" in analysis["root_jobs"]
-    assert "deploy_job" in analysis["leaf_jobs"]
-    
-    # Check optimization opportunities
-    redundant_deps = [opp for opp in analysis["optimization_opportunities"] 
-                     if opp["type"] == "redundant_dependency"]
-    assert len(redundant_deps) > 0
-    assert redundant_deps[0]["job_id"] == "deploy_job"
-    assert "build_job" in redundant_deps[0]["redundant_dependencies"]
-
-def test_optimize_github_actions_dependencies(analyzer):
-    """Test optimizing dependencies in a GitHub Actions workflow."""
-    pipeline_config = copy.deepcopy(SAMPLE_PIPELINES["github-actions"])
-    optimized_config, applied_optimizations = analyzer._optimize_github_actions_dependencies(pipeline_config)
-    
-    # Check that optimizations were applied
-    assert len(applied_optimizations) > 0
-    assert applied_optimizations[0]["type"] == "redundant_dependency_removal"
-    assert applied_optimizations[0]["job_id"] == "deploy"
-    assert "build" in applied_optimizations[0]["removed_dependencies"]
-    
-    # Check that the redundant dependency was removed
-    assert "build" not in optimized_config["jobs"]["deploy"]["needs"]
-    assert set(optimized_config["jobs"]["deploy"]["needs"]) == {"test", "lint"}
-
-def test_optimize_gitlab_ci_dependencies(analyzer):
-    """Test optimizing dependencies in a GitLab CI pipeline."""
-    pipeline_config = copy.deepcopy(SAMPLE_PIPELINES["gitlab-ci"])
-    optimized_config, applied_optimizations = analyzer._optimize_gitlab_ci_dependencies(pipeline_config)
-    
-    # Check that optimizations were applied
-    assert len(applied_optimizations) > 0
-    assert applied_optimizations[0]["type"] == "redundant_dependency_removal"
-    assert applied_optimizations[0]["job_id"] == "deploy_job"
-    assert "build_job" in applied_optimizations[0]["removed_dependencies"]
-    
-    # Check that the redundant dependency was removed
-    assert "build_job" not in optimized_config["deploy_job"]["needs"]
-    assert set(optimized_config["deploy_job"]["needs"]) == {"test_job", "lint_job"}
-
-def test_analyze_dependencies(analyzer):
-    """Test the analyze_dependencies method."""
-    # Test GitHub Actions
-    github_pipeline = copy.deepcopy(SAMPLE_PIPELINES["github-actions"])
-    github_analysis = analyzer.analyze_dependencies("github-actions", github_pipeline)
-    
-    assert "dependencies" in github_analysis
-    assert "optimization_opportunities" in github_analysis
-    
-    # Test GitLab CI
-    gitlab_pipeline = copy.deepcopy(SAMPLE_PIPELINES["gitlab-ci"])
-    gitlab_analysis = analyzer.analyze_dependencies("gitlab-ci", gitlab_pipeline)
-    
-    assert "dependencies" in gitlab_analysis
-    assert "optimization_opportunities" in gitlab_analysis
-    
-    # Test unsupported platform
-    unsupported_analysis = analyzer.analyze_dependencies("unsupported-platform", {})
-    assert "error" in unsupported_analysis
-
-def test_optimize_dependencies(analyzer):
-    """Test the optimize_dependencies method."""
-    # Test GitHub Actions
-    github_pipeline = copy.deepcopy(SAMPLE_PIPELINES["github-actions"])
-    optimized_github, applied_github = analyzer.optimize_dependencies("github-actions", github_pipeline)
-    
-    assert len(applied_github) > 0
-    assert "build" not in optimized_github["jobs"]["deploy"]["needs"]
-    
-    # Test GitLab CI
-    gitlab_pipeline = copy.deepcopy(SAMPLE_PIPELINES["gitlab-ci"])
-    optimized_gitlab, applied_gitlab = analyzer.optimize_dependencies("gitlab-ci", gitlab_pipeline)
-    
-    assert len(applied_gitlab) > 0
-    assert "build_job" not in optimized_gitlab["deploy_job"]["needs"]
-    
-    # Test unsupported platform
-    optimized_unsupported, applied_unsupported = analyzer.optimize_dependencies("unsupported-platform", {})
-    assert optimized_unsupported == {}
-    assert applied_unsupported == []
+    def test_get_language_from_file(self):
+        """Test getting language from file."""
+        # Test with Python file
+        assert self.service._get_language_from_file("file.py") == "python"
+        
+        # Test with JavaScript file
+        assert self.service._get_language_from_file("file.js") == "javascript"
+        
+        # Test with TypeScript file
+        assert self.service._get_language_from_file("file.ts") == "typescript"
+        
+        # Test with unknown extension
+        assert self.service._get_language_from_file("file.xyz") is None
+        
+        # Test with no extension
+        assert self.service._get_language_from_file("file") is None
+        
+        # Test with empty string
+        assert self.service._get_language_from_file("") is None
+        
+        # Test with None
+        assert self.service._get_language_from_file(None) is None

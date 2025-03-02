@@ -1,294 +1,198 @@
 # Security Enforcement Service
 
-The Security Enforcement service is responsible for continuous security scanning, vulnerability detection, security policy enforcement, and compliance reporting in the AI CI/CD Platform.
+The Security Enforcement service provides security scanning, vulnerability detection, policy enforcement, and automated remediation capabilities for the AI-CICD-Platform.
 
 ## Features
 
-- **Vulnerability Scanning**: Detect vulnerabilities in code, dependencies, and container images
-- **Security Policy Enforcement**: Define and enforce security policies for your CI/CD pipelines
-- **SBOM Generation**: Generate Software Bill of Materials (SBOM) for your applications
-- **Vulnerability Database**: Comprehensive vulnerability intelligence from multiple sources
-- **Security Reporting**: Generate detailed security reports for your applications
-- **Compliance Reporting**: Generate compliance reports for various standards (PCI DSS, HIPAA, GDPR, etc.)
-- **Automated Remediation**: Automatically generate and apply remediation plans for detected vulnerabilities
+- **Security Scanning**: Scan repositories, artifacts, and code for security vulnerabilities
+- **Vulnerability Database**: Maintain a database of known vulnerabilities and their status
+- **Policy Enforcement**: Define and enforce security policies for CI/CD pipelines
+- **Compliance Reporting**: Generate compliance reports for various standards
+- **Automated Remediation**: Automatically fix or mitigate detected security issues
 
-## Vulnerability Database Integration
+## Automated Remediation
 
-The Security Enforcement service integrates with multiple vulnerability databases to provide comprehensive vulnerability intelligence:
+The automated remediation feature provides the following capabilities:
 
-### Core Vulnerability Sources
+### Remediation Engine
 
-- **NVD (National Vulnerability Database)**: The U.S. government repository of standards-based vulnerability management data
-- **GitHub Security Advisories**: Security vulnerabilities from GitHub's advisory database
-- **Snyk Vulnerability Database**: Commercial vulnerability database with a focus on open source packages
+- Auto-fix capabilities for common vulnerabilities (dependency issues, misconfigurations, etc.)
+- Plugin architecture for different remediation strategies
+- Remediation templates for common security issues
+- Support for custom remediation scripts
+- Remediation verification mechanisms
 
-### Enhanced OSINT Sources
+### Remediation Workflows
 
-- **MITRE CVE Database**: Direct integration with the authoritative MITRE CVE database, which is the source of truth for CVE identifiers
-- **OSV (Open Source Vulnerabilities)**: Integration with Google's OSV database, which provides vulnerability information for open source packages across multiple ecosystems
-- **VulnDB**: Integration with Risk Based Security's VulnDB, a comprehensive commercial vulnerability intelligence database
-- **Exploit-DB**: Database of exploits and vulnerable software
-- **VulDB**: Database of security vulnerabilities
+- Workflow definitions for different vulnerability types
+- Staged remediation for complex issues
+- Support for manual intervention points in workflows
+- Notification mechanisms for workflow status
+- Audit logging for remediation actions
 
-### Additional Compliance Sources
+### Approval Mechanisms
 
-- **NIST SCAP (Security Content Automation Protocol)**: Standardized security data and automated configuration, vulnerability, and patch checking
-- **OVAL (Open Vulnerability and Assessment Language)**: A community standard for security content, assessment, and reporting
-- **CAPEC (Common Attack Pattern Enumeration and Classification)**: A comprehensive dictionary of known attack patterns
-- **EPSS (Exploit Prediction Scoring System)**: Provides a probability score for whether a vulnerability will be exploited
-- **CERT/CC Vulnerability Notes Database**: Provides information about vulnerabilities reported to the CERT Coordination Center
+- Approval workflows for security patches
+- Role-based approval permissions
+- Support for automated approvals based on policy rules
+- Approval notifications and reminders
+- Approval audit logging
 
-### Remediation Sources
+### Rollback Capabilities
 
-- **NIST National Checklist Program (NCP)**: Provides security checklists for various platforms and applications
-- **CERT Coordination Center Vulnerability Notes**: Provides detailed remediation steps for vulnerabilities
-- **OVAL (Open Vulnerability and Assessment Language)**: Provides standardized vulnerability assessment and remediation
-- **EPSS (Exploit Prediction Scoring System)**: Helps prioritize vulnerabilities based on likelihood of exploitation
-- **SCAP (Security Content Automation Protocol)**: Provides automated vulnerability management and remediation
+- Snapshot mechanisms before applying remediation
+- Rollback procedures for failed remediation
+- Support for partial rollbacks
+- Rollback verification
+- Rollback audit logging
 
-## Configuration
+### Policy Integration
 
-The Security Enforcement service can be configured using environment variables or a `.env` file:
-
-```
-# Environment Configuration
-ENVIRONMENT=development
-DEBUG=true
-
-# Security Scanner API Keys
-SNYK_API_KEY=your-snyk-api-key
-SNYK_ORG_ID=your-snyk-org-id
-
-# OWASP ZAP Configuration
-ZAP_API_KEY=your-zap-api-key
-ZAP_PROXY_URL=http://localhost:8080
-
-# Trivy Configuration
-TRIVY_SERVER_URL=http://localhost:8080
-
-# Vulnerability Database
-VULN_DB_UPDATE_INTERVAL=86400  # 24 hours
-VULN_DB_PATH=/tmp/artifacts/vulnerability_database.sqlite
-VULN_DB_AUTO_UPDATE=true
-VULN_DB_SOURCES=NVD,GITHUB,SNYK,OSINT
-
-# External Vulnerability Database API Keys
-NVD_API_KEY=your-nvd-api-key
-GITHUB_TOKEN=your-github-token
-VULDB_API_KEY=your-vuldb-api-key
-MITRE_CVE_API_KEY=your-mitre-cve-api-key
-OSV_API_KEY=your-osv-api-key
-
-# Additional Vulnerability Database API Keys
-NCP_API_KEY=your-ncp-api-key
-CERT_API_KEY=your-cert-api-key
-OVAL_API_KEY=your-oval-api-key
-EPSS_API_KEY=your-epss-api-key
-SCAP_API_KEY=your-scap-api-key
-
-# Automated Remediation Configuration
-AUTO_REMEDIATION_ENABLED=false
-AUTO_REMEDIATION_SEVERITY_THRESHOLD=HIGH
-AUTO_REMEDIATION_CONFIDENCE_THRESHOLD=0.8
-```
-
-## Compliance Standards
-
-The Security Enforcement service supports compliance reporting for the following standards:
-
-- **PCI DSS (Payment Card Industry Data Security Standard)**: Security standard for organizations that handle credit card data
-- **HIPAA (Health Insurance Portability and Accountability Act)**: Regulations for protecting sensitive patient health information
-- **GDPR (General Data Protection Regulation)**: Data protection and privacy regulations for individuals in the EU
-- **SOC2 (Service Organization Control 2)**: Framework for managing customer data based on five trust principles
-- **ISO27001**: International standard for information security management
-- **NIST 800-53**: Security and privacy controls for federal information systems and organizations
-- **NIST CSF (Cybersecurity Framework)**: Framework for improving cybersecurity risk management
-- **CIS (Center for Internet Security)**: Best practices for securing IT systems and data
-- **OWASP Top 10**: Standard awareness document for web application security risks
+- Integration with the policy engine for policy-driven remediation
+- Policy-based approval rules
+- Policy compliance verification after remediation
+- Support for policy exceptions during remediation
+- Policy-based prioritization for remediation actions
 
 ## API Endpoints
 
-The Security Enforcement service provides the following API endpoints:
+The service provides the following API endpoints for automated remediation:
 
-### Vulnerability Scanning and Management
+### Remediation Plans
 
-- `POST /api/v1/scan`: Scan a repository or artifact for vulnerabilities
-- `GET /api/v1/vulnerabilities`: Query the vulnerability database
-- `GET /api/v1/vulnerabilities/{id}`: Get details for a specific vulnerability
-- `POST /api/v1/vulnerabilities/update`: Update the vulnerability database
-- `GET /api/v1/vulnerabilities/stats`: Get statistics about the vulnerability database
-- `POST /api/v1/sbom/generate`: Generate an SBOM for a repository or artifact
-- `POST /api/v1/sbom/validate`: Validate an SBOM
-- `POST /api/v1/sbom/sign`: Sign an SBOM using Sigstore
+- `POST /remediation/plans`: Create a new remediation plan
+- `GET /remediation/plans`: Get all remediation plans
+- `GET /remediation/plans/{plan_id}`: Get a specific remediation plan
+- `GET /remediation/plans/{plan_id}/actions`: Get all actions for a plan
+- `POST /remediation/plans/{plan_id}/execute`: Execute a remediation plan
 
-### Compliance Reporting
+### Remediation Actions
 
-- `POST /api/v1/compliance/report`: Generate a compliance report for a repository
-- `GET /api/v1/compliance/report/{id}`: Get a compliance report by ID
-- `POST /api/v1/compliance/update-sources`: Update vulnerability database from additional sources for compliance reporting
+- `GET /remediation/actions/{action_id}`: Get a specific remediation action
+- `POST /remediation/actions/{action_id}/execute`: Execute a remediation action
 
-### Automated Remediation
+### Remediation Workflows
 
-- `POST /api/v1/remediation/plan`: Generate a remediation plan for vulnerabilities
-- `GET /api/v1/remediation/plan/{plan_id}`: Get a remediation plan by ID
-- `GET /api/v1/remediation/plans`: Get all remediation plans
-- `POST /api/v1/remediation/plan/{plan_id}/apply`: Apply a remediation plan
-- `GET /api/v1/remediation/actions/{vulnerability_id}`: Get remediation actions for a vulnerability
+- `GET /remediation/workflows`: Get all remediation workflows
+- `GET /remediation/workflows/{workflow_id}`: Get a specific remediation workflow
+- `POST /remediation/workflows/{workflow_id}/execute-step`: Execute the current step in a workflow
+
+### Approval Mechanisms
+
+- `POST /remediation/approvals/{request_id}/approve`: Approve an approval request
+- `POST /remediation/approvals/{request_id}/reject`: Reject an approval request
+
+### Rollback Capabilities
+
+- `POST /remediation/rollbacks`: Create a rollback operation
+- `POST /remediation/rollbacks/{operation_id}/execute`: Execute a rollback operation
+- `POST /remediation/rollbacks/{operation_id}/verify`: Verify a rollback operation
 
 ## Usage
 
-### Scanning a Repository
+### Creating a Remediation Plan
 
-```bash
-curl -X POST http://localhost:8002/api/v1/scan \
-  -H "Content-Type: application/json" \
-  -d '{
-    "repository_url": "https://github.com/example/repo",
-    "commit_sha": "1234567890abcdef",
-    "scan_types": ["trivy", "snyk", "zap"]
-  }'
+```python
+import requests
+import json
+
+# Create a remediation plan
+response = requests.post(
+    "http://localhost:8002/remediation/plans",
+    json={
+        "repository_url": "https://github.com/example/repo",
+        "commit_sha": "abcdef123456",
+        "vulnerabilities": ["CVE-2023-1234", "CVE-2023-5678"],
+        "auto_apply": False,
+        "metadata": {
+            "priority": "high",
+            "requester": "security-team"
+        }
+    }
+)
+
+# Get the plan ID
+plan = response.json()["plan"]
+plan_id = plan["id"]
 ```
 
-### Querying the Vulnerability Database
+### Executing a Remediation Plan
 
-```bash
-curl -X GET http://localhost:8002/api/v1/vulnerabilities \
-  -H "Content-Type: application/json" \
-  -d '{
-    "cve_id": "CVE-2021-44228",
-    "severity": ["CRITICAL", "HIGH"],
-    "limit": 10
-  }'
+```python
+# Execute the plan
+response = requests.post(
+    f"http://localhost:8002/remediation/plans/{plan_id}/execute",
+    json={
+        "execution_context": {
+            "environment": "staging",
+            "executor": "automated-system"
+        }
+    }
+)
+
+# Get the results
+results = response.json()["results"]
 ```
 
-### Updating the Vulnerability Database
+### Working with Workflows
 
-```bash
-curl -X POST http://localhost:8002/api/v1/vulnerabilities/update \
-  -H "Content-Type: application/json" \
-  -d '{
-    "sources": ["NVD", "GITHUB", "SNYK", "OSINT"],
-    "force_update": true
-  }'
+```python
+# Get a workflow
+response = requests.get(
+    f"http://localhost:8002/remediation/workflows/{workflow_id}"
+)
+
+workflow = response.json()["workflow"]
+
+# Execute the current step
+response = requests.post(
+    f"http://localhost:8002/remediation/workflows/{workflow_id}/execute-step"
+)
+
+result = response.json()["result"]
 ```
 
-### Generating a Compliance Report
+### Approving a Request
 
-```bash
-curl -X POST http://localhost:8002/api/v1/compliance/report \
-  -H "Content-Type: application/json" \
-  -d '{
-    "repository_url": "https://github.com/example/repo",
-    "commit_sha": "1234567890abcdef",
-    "standards": ["PCI_DSS", "OWASP_TOP_10"],
-    "include_vulnerabilities": true
-  }'
+```python
+# Approve a request
+response = requests.post(
+    f"http://localhost:8002/remediation/approvals/{request_id}/approve",
+    json={
+        "approver": "security-admin",
+        "comments": "Approved after code review"
+    }
+)
+
+result = response.json()
 ```
 
-### Getting a Compliance Report
+### Creating and Executing a Rollback
 
-```bash
-curl -X GET http://localhost:8002/api/v1/compliance/report/CR-20250225-12345678
-```
+```python
+# Create a rollback operation
+response = requests.post(
+    "http://localhost:8002/remediation/rollbacks",
+    json={
+        "workflow_id": workflow_id,
+        "action_id": action_id,
+        "snapshot_id": snapshot_id,
+        "rollback_type": "FULL",
+        "metadata": {
+            "reason": "Failed verification"
+        }
+    }
+)
 
-### Updating Additional Vulnerability Sources for Compliance
+operation = response.json()["operation"]
+operation_id = operation["id"]
 
-```bash
-curl -X POST http://localhost:8002/api/v1/compliance/update-sources?days_back=30
-```
+# Execute the rollback
+response = requests.post(
+    f"http://localhost:8002/remediation/rollbacks/{operation_id}/execute",
+    json={
+        "target_path": "/path/to/target"
+    }
+)
 
-### Generating a Remediation Plan
-
-```bash
-curl -X POST http://localhost:8002/api/v1/remediation/plan \
-  -H "Content-Type: application/json" \
-  -d '{
-    "repository_url": "https://github.com/example/repo",
-    "commit_sha": "1234567890abcdef",
-    "vulnerability_ids": ["CVE-2021-44228"],
-    "auto_apply": false
-  }'
-```
-
-### Getting a Remediation Plan
-
-```bash
-curl -X GET http://localhost:8002/api/v1/remediation/plan/PLAN-20250225-12345678
-```
-
-### Applying a Remediation Plan
-
-```bash
-curl -X POST http://localhost:8002/api/v1/remediation/plan/PLAN-20250225-12345678/apply
-```
-
-### Getting Remediation Actions for a Vulnerability
-
-```bash
-curl -X GET http://localhost:8002/api/v1/remediation/actions/CVE-2021-44228
-```
-
-## Development
-
-### Prerequisites
-
-- Python 3.9+
-- SQLite 3
-- API keys for vulnerability databases (optional)
-
-### Setup
-
-1. Clone the repository
-2. Create a virtual environment
-3. Install dependencies
-4. Create a `.env` file from `.env.example`
-5. Run the service
-
-```bash
-cd services/security-enforcement
-python -m venv venv
-source venv/bin/activate
-pip install -r requirements.txt
-cp .env.example .env
-# Edit .env to add your API keys
-python main.py
-```
-
-### Testing
-
-```bash
-pytest
-pytest --cov=.
-```
-
-## Architecture
-
-The Security Enforcement service consists of the following components:
-
-- **Security Coordinator**: Coordinates security scans, vulnerability management, compliance reporting, and remediation
-- **Vulnerability Database**: Stores and manages vulnerability data from multiple sources
-- **Security Scanners**: Integrations with security scanning tools (Trivy, Snyk, ZAP)
-- **SBOM Generator**: Generates and validates SBOMs
-- **Sigstore Integration**: Signs and verifies artifacts using Sigstore
-- **Compliance Reporting Service**: Generates compliance reports based on vulnerability data and compliance standards
-- **Remediation Service**: Generates and applies remediation plans for vulnerabilities
-- **Vulnerability Database Integrations**:
-  - Core sources: NVD, GitHub, Snyk
-  - Enhanced OSINT sources: MITRE CVE, OSV, VulnDB, Exploit-DB, VulDB
-  - Compliance sources: NIST SCAP, OVAL, CAPEC, EPSS, CERT/CC
-  - Remediation sources: NCP, CERT, OVAL, EPSS, SCAP
-
-## Contributing
-
-1. Fork the repository
-2. Create a feature branch
-3. Commit your changes
-4. Push to the branch
-5. Create a Pull Request
-
-### Development Guidelines
-
-- Write tests for all new features
-- Maintain code coverage above 80%
-- Follow the code style guidelines
-- Update documentation as needed
+result = response.json()["result"]

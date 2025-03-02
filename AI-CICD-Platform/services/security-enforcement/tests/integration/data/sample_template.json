@@ -1,0 +1,67 @@
+{
+  "id": "TEMPLATE-DEPENDENCY-UPDATE",
+  "name": "Dependency Update",
+  "description": "Update a dependency to a fixed version",
+  "template_type": "DEPENDENCY_UPDATE",
+  "vulnerability_types": ["CVE", "DEPENDENCY"],
+  "steps": [
+    {
+      "name": "Identify dependency file",
+      "description": "Identify the file containing the dependency",
+      "action": "IDENTIFY",
+      "parameters": {
+        "file_path": "${file_path}"
+      }
+    },
+    {
+      "name": "Update dependency version",
+      "description": "Update the dependency to the fixed version",
+      "action": "UPDATE",
+      "parameters": {
+        "file_path": "${file_path}",
+        "dependency_name": "${dependency_name}",
+        "current_version": "${current_version}",
+        "fixed_version": "${fixed_version}"
+      }
+    },
+    {
+      "name": "Verify update",
+      "description": "Verify the dependency was updated correctly",
+      "action": "VERIFY",
+      "parameters": {
+        "file_path": "${file_path}",
+        "dependency_name": "${dependency_name}",
+        "fixed_version": "${fixed_version}"
+      }
+    }
+  ],
+  "variables": {
+    "file_path": {
+      "description": "Path to the dependency file",
+      "type": "string",
+      "required": true
+    },
+    "dependency_name": {
+      "description": "Name of the dependency",
+      "type": "string",
+      "required": true
+    },
+    "current_version": {
+      "description": "Current version of the dependency",
+      "type": "string",
+      "required": true
+    },
+    "fixed_version": {
+      "description": "Fixed version of the dependency",
+      "type": "string",
+      "required": true
+    }
+  },
+  "strategy": "AUTOMATED",
+  "created_at": "2025-03-02T00:00:00Z",
+  "updated_at": "2025-03-02T00:00:00Z",
+  "metadata": {
+    "built_in": true,
+    "supported_package_managers": ["npm", "pip", "maven", "gradle"]
+  }
+}

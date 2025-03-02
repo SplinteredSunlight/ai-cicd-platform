@@ -260,47 +260,41 @@ The project includes scripts for automatically generating new tasks when current
 
 These scripts help maintain a continuous workflow by automatically setting up the next task with detailed requirements and context.
 
-#### Fully Automated Task Management with Git Hooks
+#### Simplified Task Management
 
-The project now includes Git hooks that fully automate the task management process:
+The project includes scripts for efficient task management:
 
-1. **Post-Commit Hook**: Completely automates the task transition process
-   - Automatically adds "Completed task" to your commit message if not present
+1. **next-task.sh**: A simple script to generate the next task and open it in VSCode
    - Runs task-complete.sh to generate the next task
    - Commits the new task files
    - Opens the new task file in VSCode for easy copy/paste
+   - Displays the task content in the terminal
 
-2. **Pre-Push Hook**: Ensures all task-related files are committed before pushing
-   - Prevents pushing with uncommitted task changes
-   - Helps maintain consistency in the task tracking
+2. **task-complete.sh**: Marks the current task as complete and generates the next task
+   - Updates the task tracking file
+   - Creates a new task file with detailed requirements
 
-3. **Post-Checkout Hook**: Notifies you of the current task after checkout
-   - Displays the current task when switching branches or pulling changes
-   - Helps you quickly get context on what to work on
+3. **auto-task-complete.sh**: Integrates task completion with git workflow
+   - Detects task completion based on commit messages
+   - Runs task-complete.sh to generate the next task
 
 Example workflow:
 ```bash
 # Make your changes for the current task
 git add .
-git commit -m "Any commit message"
-# The post-commit hook automatically:
-# - Adds "Completed task" to your commit message
-# - Generates the next task
-# - Opens the new task file in VSCode
-git push
-# All changes including the new task are pushed to the repository
+git commit -m "Implemented feature X"
+
+# Generate the next task and open it in VSCode
+./next-task.sh
+
+# The script will:
+# - Run task-complete.sh to generate the next task
+# - Commit the new task files
+# - Open the new task file in VSCode
+# - Display the task content in the terminal
 ```
 
-This fully automated system eliminates the need to manually run task scripts or add specific text to commit messages, reducing API fees by efficiently managing task transitions and ensuring you always have the next task ready to work on.
-
-You can also still use the manual scripts if needed:
-```bash
-# Manually complete a task and generate the next one
-./task-complete.sh
-
-# Or use the auto-task-complete.sh script
-./auto-task-complete.sh "Fixed bug in authentication service"
-```
+This simplified system makes it easy to manage tasks and reduce API fees by efficiently transitioning between tasks.
 
 For more information, see [Using the Task Manager](USING-TASK-MANAGER.md).
 

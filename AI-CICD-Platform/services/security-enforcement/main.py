@@ -1,4 +1,4 @@
-from fastapi import FastAPI, HTTPException, Depends, BackgroundTasks, Query
+from fastapi import FastAPI, HTTPException, Depends, BackgroundTasks, Query, APIRouter
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 import structlog
@@ -32,6 +32,7 @@ from .models.remediation import (
 )
 from .services.security_coordinator import SecurityCoordinator
 from .config import get_settings
+from .api import api_router
 
 # Configure structured logging
 logger = structlog.get_logger()
@@ -50,6 +51,9 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Include the API router
+app.include_router(api_router)
 
 @app.get("/")
 async def root():

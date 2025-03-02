@@ -1,0 +1,82 @@
+id: policy-20250301-001
+name: Secure Container Policy
+description: Policy for securing container images and runtime
+type: security
+enforcement_mode: blocking
+status: active
+environments:
+  - all
+tags:
+  - container
+  - security
+  - docker
+  - kubernetes
+version: 1.0.0
+rules:
+  - id: rule-20250301-001
+    name: no-privileged-containers
+    description: Containers should not run in privileged mode
+    severity: critical
+    condition:
+      field: container.privileged
+      operator: equals
+      value: false
+    remediation_steps:
+      - Remove the privileged flag from container configuration
+      - Use more specific capabilities instead of privileged mode
+
+  - id: rule-20250301-002
+    name: no-root-containers
+    description: Containers should not run as root
+    severity: high
+    condition:
+      field: container.user
+      operator: not_equals
+      value: root
+    remediation_steps:
+      - Set a non-root user in the container configuration
+      - Use USER directive in Dockerfile to specify a non-root user
+
+  - id: rule-20250301-003
+    name: read-only-root-filesystem
+    description: Container root filesystem should be read-only
+    severity: medium
+    condition:
+      field: container.read_only_root_filesystem
+      operator: equals
+      value: true
+    remediation_steps:
+      - Set readOnlyRootFilesystem to true in container security context
+      - Mount specific directories as writable volumes if needed
+
+  - id: rule-20250301-004
+    name: no-latest-tag
+    description: Container images should not use the latest tag
+    severity: medium
+    condition:
+      field: container.image.tag
+      operator: not_equals
+      value: latest
+    remediation_steps:
+      - Use specific version tags for container images
+      - Implement a versioning strategy for container images
+
+  - id: rule-20250301-005
+    name: drop-capabilities
+    description: Container should drop all capabilities and only add required ones
+    severity: high
+    condition:
+      operator: and
+      conditions:
+        - field: container.capabilities.drop
+          operator: contains
+          value: ALL
+        - field: container.capabilities.add
+          operator: not_contains
+          value: NET_ADMIN
+        - field: container.capabilities.add
+          operator: not_contains
+          value: SYS_ADMIN
+    remediation_steps:
+      - Drop ALL capabilities and only add the specific ones required
+      - Review container capabilities and remove unnecessary ones
